@@ -1,64 +1,96 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO.Pipelines;
+using System.Windows.Forms;
+using uncy.board;
+using System.Linq;
 class Program
 {
+
     static void Main(string[] args)
     {
+        string test = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+        Fen fen = new Fen(test);
+
+        //Console.WriteLine(fen.completeFEN);
+        //Console.WriteLine(fen.piecePositions);
+        //Console.WriteLine(fen.isWhiteToMove);
+        //Console.WriteLine(fen.castlingRights);
+        //Console.WriteLine(fen.possibleEnPassantCapture);
+        //Console.WriteLine(fen.moveCountSinceLastCaptureOrPawnMove);
+        //Console.WriteLine(fen.moveCount);
+
+        //Console.WriteLine(fen.completeFEN.Length);
+        //Console.WriteLine(fen.piecePositions.Length);
+        //Console.WriteLine(fen.isWhiteToMove.Length);
+        //Console.WriteLine(fen.castlingRights.Length);
+        //Console.WriteLine(fen.possibleEnPassantCapture.Length);
+        //Console.WriteLine(fen.moveCountSinceLastCaptureOrPawnMove.Length);
+        //Console.WriteLine(fen.moveCount.Length);
+
+       
+
+
+        //Console.WriteLine(FenDataExtractor.GetDimensionsOfBoard(fen));
+
+        //Console.WriteLine(FenDataExtractor.GetSquareOccupationInformation(fen, 1,0));
+
+        
+        
+        
+        
         Stopwatch stopwatch = new Stopwatch();
 
         stopwatch.Start();
 
-        PolymorphicChessBoard board = new PolymorphicChessBoard();
-
-        for (int i = 1; i <= 10; i++)
-        {
-            for (int j = 1; j <= 10; j++)
-            {
-                Coordinate coord = new Coordinate(i, j);
-                board.squares.Add(coord);
-            }
-        }
-
-        board.precomputedData = PrecomputedSquareDataFactory.GenerateAllData(board.squares);
-
-
-
-
-
-
+        PolymorphicChessBoard board = BoardBuildFactory.CreateBoard(fen);
 
         stopwatch.Stop();
         Console.WriteLine("Done!");
 
-        // foreach (Coordinate coord in board.squares)
-        // {
-        //     Console.WriteLine(coord.ToString());
-        // }
-        foreach (var kvp in board.precomputedData)
-        {
-            int count = kvp.Value.kingMoves.Count
-                        + kvp.Value.knightMoves.Count
-                        + kvp.Value.diagonalSlidingRays.Values.Sum(list => list?.Count ?? 0)
-                        + kvp.Value.verticalSlidingRays.Values.Sum(list => list?.Count ?? 0)
-                        + kvp.Value.pawnPushTargets.Count
-                        + kvp.Value.pawnCaptureTargets.Count;
-            Console.WriteLine(kvp.Key.ToString() + ": possible Reaching Squares sum: " + count + "; kingmoves:" + kvp.Value.kingMoves.Count + "; knightmoves:" + kvp.Value.knightMoves.Count +
-                                "; diagonal slide moves: " + kvp.Value.diagonalSlidingRays.Values.Sum(list => list?.Count ?? 0) + "; vertical slide moves: " + kvp.Value.verticalSlidingRays.Values.Sum(list => list?.Count ?? 0) + "; pawn push moves:" + kvp.Value.pawnPushTargets.Count + "; pawn capture moves:" + kvp.Value.pawnCaptureTargets.Count);
-        }
+
+        //board.squares.Remove(new Coordinate(5, 5));
+        //board.squares.Remove(new Coordinate(5, 4));
+        //board.squares.Remove(new Coordinate(4, 4));
+        //board.squares.Remove(new Coordinate(4, 5));
+
+
+
+        //foreach (var kvp in board.precomputedData)
+        //{
+        //    int count = kvp.Value.kingMoves.Count
+        //                + kvp.Value.knightMoves.Count
+        //                + kvp.Value.diagonalSlidingRays.Values.Sum(list => list?.Count ?? 0)
+        //                + kvp.Value.verticalSlidingRays.Values.Sum(list => list?.Count ?? 0)
+        //                + kvp.Value.whitePawnPushTargets.Count
+        //                + kvp.Value.whitePawnCaptureTargets.Count
+        //                + kvp.Value.blackPawnPushTargets.Count
+        //                + kvp.Value.blackPawnCaptureTargets.Count;
+
+        //    Console.WriteLine(kvp.Key.ToString() + ": possible Reaching Squares sum: " + count + "; kingmoves:" + kvp.Value.kingMoves.Count + "; knightmoves:" + kvp.Value.knightMoves.Count +
+        //                        "; diagonal slide moves: " + kvp.Value.diagonalSlidingRays.Values.Sum(list => list?.Count ?? 0) + "; vertical slide moves: " + kvp.Value.verticalSlidingRays.Values.Sum(list => list?.Count ?? 0) + "; white pawn push moves:" + kvp.Value.whitePawnPushTargets.Count + "; white pawn capture moves:" + kvp.Value.whitePawnCaptureTargets.Count + "; black pawn push moves:" + kvp.Value.blackPawnPushTargets.Count + "; black pawn capture moves:" + kvp.Value.blackPawnCaptureTargets.Count);
+        //}
 
         Console.WriteLine($"Dauer: {stopwatch.ElapsedMilliseconds} ms");
 
 
-        long memory = Process.GetCurrentProcess().WorkingSet64;
+        //long memory = Process.GetCurrentProcess().WorkingSet64;
         // Console.WriteLine($"Arbeitsspeicher: {memory / 1024 / 1024} MB");
 
 
-        // for (int i = 0; i < 4000000; i++)
-        // {
+        
+        
+        
+        OpenForm(board.squares);
+    }
 
-        // }
+    private static void OpenForm(HashSet<Coordinate> initialSquares)
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new MainForm(initialSquares));
 
-        memory = Process.GetCurrentProcess().WorkingSet64;
-        Console.WriteLine($"Arbeitsspeicher: {memory / 1024 / 1024} MB");
+
     }
 }

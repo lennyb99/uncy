@@ -19,8 +19,11 @@ public class PrecomputedSquareDataFactory
                                          CalculateKnightMoves(square, allSquares),
                                          CalculateDiagonalSlidingRays(square, allSquares),
                                          CalculateVerticalSlidingRays(square, allSquares),
-                                         CalculatePawnPushTargets(square, allSquares),
-                                         CalculatePawnCaptureTargets(square, allSquares));
+                                         CalculateWhitePawnPushTargets(square, allSquares),
+                                         CalculateWhitePawnCaptureTargets(square, allSquares),
+                                         CalculateBlackPawnPushTargets(square, allSquares),
+                                         CalculateBlackPawnCaptureTargets(square, allSquares)
+                                         );
     }
 
     private static List<Coordinate> CalculateKingMoves(Coordinate square, HashSet<Coordinate> allSquares)
@@ -131,7 +134,7 @@ public class PrecomputedSquareDataFactory
         return currentRayPath;
     }
 
-    private static List<Coordinate> CalculatePawnPushTargets(Coordinate square, HashSet<Coordinate> allSquares)
+    private static List<Coordinate> CalculateWhitePawnPushTargets(Coordinate square, HashSet<Coordinate> allSquares)
     {
         List<Coordinate> possibleMoves = new List<Coordinate>();
         int[] dx = { 0, 0 };
@@ -147,11 +150,43 @@ public class PrecomputedSquareDataFactory
         return possibleMoves;
     }
 
-    private static List<Coordinate> CalculatePawnCaptureTargets(Coordinate square, HashSet<Coordinate> allSquares)
+    private static List<Coordinate> CalculateWhitePawnCaptureTargets(Coordinate square, HashSet<Coordinate> allSquares)
     {
         List<Coordinate> possibleMoves = new List<Coordinate>();
         int[] dx = { -1, 1 };
         int[] dy = { 1, 1 };
+        for (int i = 0; i < 2; i++)
+        {
+            Coordinate targetSquare = new Coordinate(square.X + dx[i], square.Y + dy[i]);
+            if (allSquares.Contains(targetSquare))
+            {
+                possibleMoves.Add(targetSquare);
+            }
+        }
+        return possibleMoves;
+    }
+
+    private static List<Coordinate> CalculateBlackPawnPushTargets(Coordinate square, HashSet<Coordinate> allSquares)
+    {
+        List<Coordinate> possibleMoves = new List<Coordinate>();
+        int[] dx = { 0, 0 };
+        int[] dy = { -1, -2 };
+        for (int i = 0; i < 2; i++)
+        {
+            Coordinate targetSquare = new Coordinate(square.X + dx[i], square.Y + dy[i]);
+            if (allSquares.Contains(targetSquare))
+            {
+                possibleMoves.Add(targetSquare);
+            }
+        }
+        return possibleMoves;
+    }
+
+    private static List<Coordinate> CalculateBlackPawnCaptureTargets(Coordinate square, HashSet<Coordinate> allSquares)
+    {
+        List<Coordinate> possibleMoves = new List<Coordinate>();
+        int[] dx = { -1, 1 };
+        int[] dy = { -1, -1 };
         for (int i = 0; i < 2; i++)
         {
             Coordinate targetSquare = new Coordinate(square.X + dx[i], square.Y + dy[i]);
