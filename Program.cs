@@ -5,8 +5,7 @@ using System.Windows.Forms;
 using uncy.board;
 using System.Linq;
 class Program
-{
-
+{ 
     static void Main(string[] args)
     {
         string test = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -31,11 +30,6 @@ class Program
 
        
 
-
-        //Console.WriteLine(FenDataExtractor.GetDimensionsOfBoard(fen));
-
-        //Console.WriteLine(FenDataExtractor.GetSquareOccupationInformation(fen, 1,0));
-
         
         
         
@@ -45,6 +39,11 @@ class Program
         stopwatch.Start();
 
         PolymorphicChessBoard board = BoardBuildFactory.CreateBoard(fen);
+
+
+        Console.WriteLine(FenDataExtractor.GetDimensionsOfBoard(fen));
+
+        Console.WriteLine(FenDataExtractor.GetSquareOccupationInformation(fen.piecePositions, 1,0, board.boardDimensions.Item2));
 
         stopwatch.Stop();
         Console.WriteLine("Done!");
@@ -79,7 +78,13 @@ class Program
         // Console.WriteLine($"Arbeitsspeicher: {memory / 1024 / 1024} MB");
 
 
-        
+        foreach (var kvp in board.piecePositions)
+        {
+            if (kvp.Value != null)
+            {
+                Console.WriteLine(kvp.Key.ToString() + ": " + kvp.Value.ToString());
+            }
+        }
         
         
         OpenForm(board.squares);

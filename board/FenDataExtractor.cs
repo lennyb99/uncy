@@ -92,11 +92,9 @@ namespace uncy.board
          *                          Q = white Queen     q = black Queen
          *                          K = white King      k = black King
          */
-        public static char GetSquareOccupationInformation(Fen fen, int file, int rank)
+        public static char GetSquareOccupationInformation(string str, int file, int rank, int rankDimension)
         {
-            string str = fen.piecePositions;
-
-            str = str.Split("/")[rank];
+            str = str.Split("/")[Math.Abs(rank-(rankDimension-1))];
             str += "/";
 
             int count = file;

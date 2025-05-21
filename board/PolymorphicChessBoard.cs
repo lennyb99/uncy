@@ -4,6 +4,7 @@ using System.Dynamic;
 
 class PolymorphicChessBoard
 {
+    public (int, int) boardDimensions = (0, 0);
     public HashSet<Coordinate> squares = new HashSet<Coordinate>();
     public List<Piece> pieces = new List<Piece>();
     public Dictionary<Coordinate, Piece> piecePositions = new Dictionary<Coordinate, Piece>();
