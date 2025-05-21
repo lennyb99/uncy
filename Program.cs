@@ -8,7 +8,7 @@ class Program
 { 
     static void Main(string[] args)
     {
-        string test = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        string test = "rnbqkbxr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
         Fen fen = new Fen(test);
 
@@ -94,7 +94,7 @@ class Program
     {
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MainForm(initialSquares));
+        //Application.Run(new MainForm(initialSquares));
 
 
     }
