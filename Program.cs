@@ -78,15 +78,13 @@ class Program
         // Console.WriteLine($"Arbeitsspeicher: {memory / 1024 / 1024} MB");
 
 
-        foreach (var kvp in board.piecePositions)
+        foreach (var kvp in board.pieceStartingPositions)
         {
             if (kvp.Value != null)
             {
                 Console.WriteLine(kvp.Key.ToString() + ": " + kvp.Value.ToString());
             }
         }
-        
-        
         OpenForm(board.squares);
     }
 

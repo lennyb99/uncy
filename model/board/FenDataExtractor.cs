@@ -10,11 +10,11 @@ namespace uncy.board
 {
     class FenDataExtractor
     {
-        public static (int,int) GetDimensionsOfBoard(Fen fen)
+        public static (int, int) GetDimensionsOfBoard(Fen fen)
         {
             string str = fen.piecePositions;
 
-            if(str == null || str.Length == 0)
+            if (str == null || str.Length == 0)
             {
                 throw new ArgumentException("Invalid Position Retrieved from FEN)");
             }
@@ -24,16 +24,16 @@ namespace uncy.board
 
             foreach (char c in str)
             {
-                if(c == '/')
+                if (c == '/')
                 {
                     rankCount++;
                 }
             }
 
             string firstRank = str.Split("/")[0]; // retrieves the first rank of the positional info from the fen notation. 
-            
+
             // Loops through the first rank and counts its length
-            for(int i = 0;i<firstRank.Length;i++)
+            for (int i = 0; i < firstRank.Length; i++)
             {
                 if (char.IsLetter(firstRank[i]))
                 {
@@ -42,7 +42,7 @@ namespace uncy.board
                 else if (char.IsDigit(firstRank[i]))
                 {
                     string digit = "";
-                    for (int j = i; j < firstRank.Length;j++)
+                    for (int j = i; j < firstRank.Length; j++)
                     {
                         if (char.IsDigit(firstRank[j]))
                         {
@@ -51,7 +51,7 @@ namespace uncy.board
                         }
                         else
                         {
-                            i = j-1;
+                            i = j - 1;
                             break;
                         }
                     }
@@ -94,7 +94,7 @@ namespace uncy.board
          */
         public static char GetSquareOccupationInformation(string str, int file, int rank, int rankDimension)
         {
-            str = str.Split("/")[Math.Abs(rank-(rankDimension-1))];
+            str = str.Split("/")[Math.Abs(rank - (rankDimension - 1))];
             str += "/";
 
             int count = file;
@@ -109,7 +109,7 @@ namespace uncy.board
                 else if (char.IsDigit(str[0]))
                 {
                     count -= IdentifyDigitGroup(str);
-                    if(count < 0)
+                    if (count < 0)
                     {
                         return 'e';
                     }
@@ -124,11 +124,99 @@ namespace uncy.board
             {
                 return 'e';
             }
-            else { 
+            else
+            {
                 return str[0];
             }
         }
 
+        public static bool GetIfWhiteToMove(string str)
+        {
+            if (str.Equals("w"))
+            {
+                return true;
+            }
+            else if (str.Equals("b"))
+            {
+                return false;
+            }
+            else
+            {
+                throw new ArgumentException("Invalid argument. Needs to be 'w' for white or 'b' for black.");
+            }
+        }
+
+        /*
+         * Returns array of bools representing 
+         *
+         */
+
+        public static bool CanWhiteKingCastleKingSide(string str)
+        {
+            if (str.Contains("K"))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public static bool CanWhiteKingCastleQueenSide(string str)
+        {
+            if (str.Contains("Q"))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public static bool CanBlackKingCastleKingSide(string str)
+        {
+            if (str.Contains("k"))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public static bool CanBlackKingCastleQueenSide(string str)
+        {
+            if (str.Contains("q"))
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        public static Coordinate GetEnPassant(string str)
+        {
+            if (char.IsLetter(str[0]))
+            {
+                return new Coordinate(str[0] - 'a', str[1]);
+            }
+            return new Coordinate(-1, -1);
+        }
+
+        public static int GetHalfMoveCountSinceLastCaptureOrPawnMove(string str)
+        {
+            return int.Parse(str);
+        }
+
+        public static int GetMoveCount(string str)
+        {
+            return int.Parse(str);
+        }
         /*
          * 
          */
