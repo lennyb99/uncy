@@ -52,7 +52,7 @@ namespace uncy.board
                 Piece p = PieceFactory.CreatePiece(pieceIdentifier);
                 if (p != null)
                 {
-                    board.pieceStartingPositions.Add(coord, p);
+                    board.piecePositions.Add(coord, p);
                 }
             }
         }
@@ -66,8 +66,8 @@ namespace uncy.board
                     board.squares.Remove(new Coordinate(coord.X, coord.Y));
 
                     // shouldn't happen, but you never know
-                    if (board.pieceStartingPositions.ContainsKey(new Coordinate(coord.X, coord.Y))){
-                        board.pieceStartingPositions.Remove(new Coordinate(coord.X, coord.Y));
+                    if (board.piecePositions.ContainsKey(new Coordinate(coord.X, coord.Y))){
+                        board.piecePositions.Remove(new Coordinate(coord.X, coord.Y));
                     }
                 }
             }

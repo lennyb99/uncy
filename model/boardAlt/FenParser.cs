@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
-using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
+using uncy.board;
 
-namespace uncy.board
+namespace uncy.model.boardAlt
 {
-    class FenDataExtractor
+    internal class FenParser
     {
         public static (int, int) GetDimensionsOfBoard(Fen fen)
         {
@@ -85,7 +84,7 @@ namespace uncy.board
          * Note, that the technical representation of files and ranks in this application starts at 0.  
          * 
          * identifier:
-         * e = empty                P = white Pawn      p = black Pawn
+         * e = empty, but active    P = white Pawn      p = black Pawn
          * x = inactive square      N = white Knight    n = black Knight
          *                          B = white Bishop    b = black Bishop
          *                          R = white Rook      r = black Rook
@@ -194,7 +193,7 @@ namespace uncy.board
             }
         }
 
-        public static (int,int) GetEnPassant(string str)
+        public static (int, int) GetEnPassant(string str)
         {
             if (char.IsLetter(str[0]))
             {
@@ -216,4 +215,6 @@ namespace uncy.board
          * 
          */
     }
+
 }
+
