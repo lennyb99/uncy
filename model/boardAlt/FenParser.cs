@@ -129,6 +129,7 @@ namespace uncy.model.boardAlt
             }
         }
 
+
         public static bool GetIfWhiteToMove(string str)
         {
             if (str.Equals("w"))
