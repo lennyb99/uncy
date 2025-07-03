@@ -47,7 +47,7 @@ class Program
 
         
 
-        Perft.PerftDivide(1, board);
+        Perft.PerftDivide(6, board);
 
         
         

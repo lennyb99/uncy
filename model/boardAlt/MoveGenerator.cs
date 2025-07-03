@@ -371,13 +371,13 @@ namespace uncy.model.boardAlt
                     // En Passant Capture
                     if (board.enPassantTargetSquare != (-1, -1))
                     {
-                        char targetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2];
-                        if (board.enPassantTargetSquare.Item2 == rank && !IsPieceWhite(targetPiece))
+                        char enPaTargetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2-1];
+                        if (board.enPassantTargetSquare.Item2-1 == rank && !IsPieceWhite(enPaTargetPiece))
                         {
                             if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
-                            {
-                                moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2 + 1), currentPiece, capturedPiece: targetPiece, enPassantCaptureFlag: true)));
-                            }
+                                {
+                                    moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                                }
                         }
                     }
                 }
@@ -458,17 +458,15 @@ namespace uncy.model.boardAlt
                     // En Passant Capture
                     if (board.enPassantTargetSquare != (-1, -1))
                     {
-                        char targetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2];
-                        if (board.enPassantTargetSquare.Item2 == rank && IsPieceWhite(targetPiece))
+                        char enPaTargetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2+1];
+                        if (board.enPassantTargetSquare.Item2+1 == rank && IsPieceWhite(enPaTargetPiece))
                         {
                             if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
                             {
-                                moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2 - 1), currentPiece, capturedPiece: targetPiece, enPassantCaptureFlag: true)));
+                                moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
                             }
                         }
                     }
-
-
                 }
                 return moves;
             }

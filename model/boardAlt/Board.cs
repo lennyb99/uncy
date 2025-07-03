@@ -246,9 +246,8 @@ namespace uncy.model.boardAlt
 
             sideToMove = !sideToMove;
             // TODO: Zobrist key
-
-
-            // Legality Check
+            
+            // Legality Checks
             if (!IsPositionLegalAfterMoveFrom(IsPieceWhite(move.movedPiece)))
             {
                 UnmakeMove(move, undo);
@@ -260,7 +259,7 @@ namespace uncy.model.boardAlt
 
         public void UnmakeMove(Move move, Undo undo)
         {
-            RevertPieceMove(move);
+            RevertPieceMove(move, undo);
             this.whiteKingShortCastle = undo.whiteKingShortCastle;
             this.whiteKingLongCastle = undo.whiteKingLongCastle;
             this.blackKingShortCastle= undo.blackKingShortCastle;
@@ -280,6 +279,18 @@ namespace uncy.model.boardAlt
             // Update destination square
             board[move.toFile, move.toRank] = move.movedPiece;
 
+            // Check for Castling move
+            if (move.castlingMoveFlag)
+            {
+                ApplyCastlingMove(move);
+            }
+
+            // Check for En Passant move
+            if(move.enPassantCaptureFlag)
+            {
+                ApplyEnPassantMove(move);
+            }
+
             // Check for promotion
             if(move.promotionPiece != 'e')
             {
@@ -287,11 +298,21 @@ namespace uncy.model.boardAlt
             }
         }
 
-        private void RevertPieceMove(Move move)
+        private void RevertPieceMove(Move move, Undo undo)
         {
             board[move.fromFile, move.fromRank] = move.movedPiece;
 
             board[move.toFile, move.toRank] = move.capturedPiece;
+
+            if (move.castlingMoveFlag)
+            {
+                RevertCastlingMove(move, undo);
+            }
+
+            if (move.enPassantCaptureFlag)
+            {
+                RevertEnPassantMove(move);
+            }
         }
         
         /*
@@ -311,6 +332,95 @@ namespace uncy.model.boardAlt
             if (IsSquareAttackedByColor(!color, kingPosition.Item1, kingPosition.Item2)) return false;
             
             return true;
+        }
+
+        /*
+         * Since the king is the move.movedPiece subject and will be moved automatically, we only need to move the rook to it's correct position
+         * and change the corresponding castling rights
+         */
+        private void ApplyCastlingMove(Move move)
+        {
+            int rookOffset;
+            if (move.toFile - move.fromFile > 0) // Get information whether its a king or queenside castle move, to know where to put the rook
+            {
+                // Short castle
+                rookOffset = -1;
+                if (IsPieceWhite(move.movedPiece))
+                {
+                    whiteKingShortCastle = false;
+                    MovePieceWithoutMoveContext(shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                }
+                else
+                {
+                    blackKingShortCastle = false;
+                    MovePieceWithoutMoveContext(shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                }
+            }
+            else  // long castle
+            {
+                rookOffset = 1;
+                if (IsPieceWhite(move.movedPiece))
+                {
+                    whiteKingLongCastle = false;
+                    MovePieceWithoutMoveContext(longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                }
+                else
+                {
+                    blackKingLongCastle = false;
+                    MovePieceWithoutMoveContext(longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                }
+            }
+        }
+
+       
+
+        private void ApplyEnPassantMove(Move move)
+        {
+            int offset;
+            if (IsPieceWhite(move.movedPiece))
+            {
+                offset = -1;
+            }
+            else
+            {
+                offset = 1;
+            }
+
+            board[move.toFile, move.toRank + offset] = 'e';
+        }
+
+        private void RevertCastlingMove(Move move, Undo undo)
+        {
+            if (undo.whiteKingShortCastle != whiteKingShortCastle)
+            {
+                MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2);
+            }
+            else if (undo.whiteKingLongCastle != whiteKingLongCastle)
+            {
+                MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2);
+            }
+            else if (undo.blackKingShortCastle != blackKingShortCastle)
+            {
+                MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2);
+            }
+            else // No check for this case since this is only called when a castling move was performed
+            {
+                MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2);
+            }
+        }
+
+        private void RevertEnPassantMove(Move move)
+        {
+            if (IsPieceWhite(move.movedPiece))
+            {
+                board[move.toFile, move.toRank -1] = 'p';
+            }
+            else
+            {
+                board[move.toFile, move.toRank +1] = 'P';
+            }
+
+            board[move.toFile, move.toRank] = 'e';
         }
 
         /*
@@ -382,6 +492,10 @@ namespace uncy.model.boardAlt
                     enPassantTargetSquare = (move.toFile, move.toRank + 1);
                 }
             }
+            else
+            {
+                enPassantTargetSquare = (-1, -1);
+            }
         }
 
         private void UpdateHalfMoveClock(Move move)
@@ -396,7 +510,15 @@ namespace uncy.model.boardAlt
             }
         }
 
-
+        /*
+       * helper util method to reduce code redundancy.
+       */
+        private void MovePieceWithoutMoveContext(int fromFile, int fromRank, int toFile, int toRank)
+        {
+            char piece = board[fromFile, fromRank];
+            board[fromFile, fromRank] = 'e';
+            board[toFile, toRank] = piece;
+        }
 
 
         /*
