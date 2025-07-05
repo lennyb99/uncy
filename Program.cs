@@ -31,9 +31,9 @@ class Program
         Fen fenBishop = new Fen("8/8/8/8/3B4/8/8/8 w KQkq - 0 1");
         Fen fenKnight = new Fen("k7/8/8/8/3N4/8/8/K7 w KQkq - 0 1");
 
-        Fen debugFen = new Fen("rnbqkbnr/1ppppppp/p7/8/1P6/P7/2PPPPPP/RNBQKBNR b KQkq - 0 1");
+        Fen debugFen = new Fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
 
-        Board board = new Board(fen);
+        Board board = new Board(debugFen);
 
         //List<Move> moves = MoveGenerator.GenerateLegalMoves(board, true);
         //Console.WriteLine(moves.Count);
@@ -45,9 +45,9 @@ class Program
         //Console.WriteLine($"Dauer: {sw.Elapsed}");
         //Console.WriteLine($"Dauer (ms): {sw.ElapsedMilliseconds} ms");
 
-        
 
-        Perft.PerftDivide(6, board);
+
+        Perft.PerftDivide(4, board);
 
         
         

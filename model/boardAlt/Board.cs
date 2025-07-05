@@ -6,6 +6,7 @@ using System.Drawing.Text;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using uncy.board;
 
 namespace uncy.model.boardAlt
@@ -237,7 +238,6 @@ namespace uncy.model.boardAlt
         {
             undo = new Undo(this.whiteKingShortCastle, this.whiteKingLongCastle, this.blackKingShortCastle, this.blackKingLongCastle,
                             this.enPassantTargetSquare, this.halfMoveClock, 999999);
-
             ApplyPieceMove(move);
 
             UpdateCastleRights(move);
@@ -246,14 +246,14 @@ namespace uncy.model.boardAlt
 
             sideToMove = !sideToMove;
             // TODO: Zobrist key
-            
+
+
             // Legality Checks
-            if (!IsPositionLegalAfterMoveFrom(IsPieceWhite(move.movedPiece)))
+            if (!IsPositionLegalAfterMoveFrom(IsPieceWhite(move.movedPiece), move))
             {
                 UnmakeMove(move, undo);
                 return false;
             }
-
             return true;
         }
 
@@ -318,7 +318,7 @@ namespace uncy.model.boardAlt
         /*
          * This method reads the current board properties of this board object and determines whether the position represented in the data is a legal chess position
          */
-        private bool IsPositionLegalAfterMoveFrom(bool color)
+        private bool IsPositionLegalAfterMoveFrom(bool color, Move move)
         {
             (int, int) kingPosition;
             if (color == true)
@@ -330,8 +330,41 @@ namespace uncy.model.boardAlt
             }
 
             if (IsSquareAttackedByColor(!color, kingPosition.Item1, kingPosition.Item2)) return false;
+
+            if (move.castlingMoveFlag && !IsCastlingLegal(move)) return false;
             
             return true;
+        }
+
+        private bool IsCastlingLegal(Move move)
+        {
+            (byte, byte)[] squaresToCheck = GetSquaresBetweenTwoCoords(move.fromFile, move.fromRank, move.toFile, move.toRank);
+
+            foreach (var square in squaresToCheck)
+            {
+                if (IsSquareAttackedByColor(!IsPieceWhite(move.movedPiece), square.Item1, square.Item2)) return false;
+            }
+
+            return true;
+        }
+
+        public (byte,byte)[] GetSquaresBetweenTwoCoords(int xOri, int yOri, int xDest, int yDest)
+        {
+            if (xOri != xDest && yOri != yDest)
+                throw new ArgumentException("Only horizontal or vertical directions");
+
+            int stepX = Math.Sign(xDest - xOri);   
+            int stepY = Math.Sign(yDest - yOri);  
+
+            int len = Math.Max(Math.Abs(xDest - xOri), Math.Abs(yDest - yOri)) + 1;
+
+            var result = new (byte X, byte Y)[len];
+
+            for (int i = 0; i < len; i++)
+                result[i] = ((byte)(xOri + i * stepX),
+                             (byte)(yOri + i * stepY));
+
+            return result;
         }
 
         /*
@@ -348,11 +381,13 @@ namespace uncy.model.boardAlt
                 if (IsPieceWhite(move.movedPiece))
                 {
                     whiteKingShortCastle = false;
+                    whiteKingLongCastle = false;
                     MovePieceWithoutMoveContext(shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2, move.toFile + rookOffset, move.toRank);
                 }
                 else
                 {
                     blackKingShortCastle = false;
+                    blackKingLongCastle = false;
                     MovePieceWithoutMoveContext(shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
                 }
             }
@@ -361,11 +396,13 @@ namespace uncy.model.boardAlt
                 rookOffset = 1;
                 if (IsPieceWhite(move.movedPiece))
                 {
+                    whiteKingShortCastle = false;
                     whiteKingLongCastle = false;
                     MovePieceWithoutMoveContext(longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2, move.toFile + rookOffset, move.toRank);
                 }
                 else
                 {
+                    blackKingShortCastle = false;
                     blackKingLongCastle = false;
                     MovePieceWithoutMoveContext(longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
                 }
@@ -391,22 +428,39 @@ namespace uncy.model.boardAlt
 
         private void RevertCastlingMove(Move move, Undo undo)
         {
-            if (undo.whiteKingShortCastle != whiteKingShortCastle)
+            if (WasCastlingMoveShortCastle(move))
             {
-                MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2);
+                if (IsPieceWhite(move.movedPiece))
+                {
+
+                    MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2);
+                }
+                else
+                {
+                    MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2);
+                }
             }
-            else if (undo.whiteKingLongCastle != whiteKingLongCastle)
+            else
             {
-                MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2);
+                if (IsPieceWhite(move.movedPiece))
+                {
+
+                    MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2);
+                }
+                else
+                {
+                    MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2);
+                }
             }
-            else if (undo.blackKingShortCastle != blackKingShortCastle)
-            {
-                MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2);
-            }
-            else // No check for this case since this is only called when a castling move was performed
-            {
-                MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2);
-            }
+        }
+
+        /* 
+         * Only call this if you made sure that it's a castling move
+         */
+        private bool WasCastlingMoveShortCastle(Move move)
+        {
+            if (move.fromFile - move.toFile > 0) return false;
+            return true;
         }
 
         private void RevertEnPassantMove(Move move)
@@ -437,12 +491,16 @@ namespace uncy.model.boardAlt
             switch(move.movedPiece)
             {
                 case 'K':
-                    whiteKingShortCastle = false;
-                    whiteKingLongCastle = false;
+                    if (!move.castlingMoveFlag) { 
+                        whiteKingShortCastle = false;
+                        whiteKingLongCastle = false;
+                    }
                     break;
                 case 'k':
-                    blackKingShortCastle = false;
-                    blackKingLongCastle = false;
+                    if (!move.castlingMoveFlag) { 
+                        blackKingShortCastle = false;
+                        blackKingLongCastle = false;
+                    }
                     break;
                 case 'R':
                     pos = shortCastleWhiteRookPos;

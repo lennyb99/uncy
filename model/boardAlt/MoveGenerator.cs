@@ -215,7 +215,7 @@ namespace uncy.model.boardAlt
                 {
                     if (board.whiteKingShortCastle)
                     {
-                        for (int i = file; i < board.dimensionsOfBoard.Item1; i++)
+                        for (int i = file+1; i < board.dimensionsOfBoard.Item1; i++)
                         {
                             char nextPiece = board.board[i, rank];
                             if (nextPiece == 'e')
@@ -231,7 +231,7 @@ namespace uncy.model.boardAlt
                     }
                     if (board.whiteKingLongCastle)
                     {
-                        for (int i = file; i >= 0; i--)
+                        for (int i = file-1; i >= 0; i--)
                         {
                             char nextPiece = board.board[i, rank];
                             if (nextPiece == 'e')
@@ -250,7 +250,7 @@ namespace uncy.model.boardAlt
                 {
                     if (board.blackKingShortCastle)
                     {
-                        for (int i = file; i < board.dimensionsOfBoard.Item1; i++)
+                        for (int i = file+1; i < board.dimensionsOfBoard.Item1; i++)
                         {
                             char nextPiece = board.board[i, rank];
                             if (nextPiece == 'e')
@@ -266,7 +266,7 @@ namespace uncy.model.boardAlt
                     }
                     if (board.blackKingLongCastle)
                     {
-                        for (int i = file; i >= 0; i--)
+                        for (int i = file-1; i >= 0; i--)
                         {
                             char nextPiece = board.board[i, rank];
                             if (nextPiece == 'e')
