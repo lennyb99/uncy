@@ -11,6 +11,8 @@ using uncy.view;
 using uncy.model.boardAlt;
 using System.Runtime.CompilerServices;
 using uncy.model.Tools;
+using uncy.model.eval;
+using uncy.model.search;
 class Program
 { 
     static void Main(string[] args)
@@ -18,7 +20,7 @@ class Program
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Form1 form = new Form1();
-
+        
 
 
 
@@ -31,7 +33,7 @@ class Program
         Fen fenBishop = new Fen("8/8/8/8/3B4/8/8/8 w KQkq - 0 1");
         Fen fenKnight = new Fen("k7/8/8/8/3N4/8/8/K7 w KQkq - 0 1");
 
-        Fen debugFen = new Fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+        Fen debugFen = new Fen("2Q3K1/8/8/5n2/8/8/8/7k b - - 0 1");
 
         Board board = new Board(debugFen);
 
@@ -47,9 +49,22 @@ class Program
 
 
 
-        Perft.PerftDivide(4, board);
+        //Perft.PerftDivide(7, board);
 
-        
+        IEvaluator evaluator = new CompositeEvaluator(
+            (new MaterialEvaluator(), 100));
+
+        Search search = new Search(evaluator);
+
+        Console.WriteLine(evaluator.Evaluate(board));
+
+        Move move = search.FindBestMove(board, 4);
+        Console.WriteLine(move.ToString());
+        board.MakeMove(move, out Undo undo);
+        board.PrintBoardToConsoleShort();
+        Console.WriteLine(evaluator.Evaluate(board));
+
+
         
         
         //Application.Run(form);

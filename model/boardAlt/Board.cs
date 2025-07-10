@@ -11,7 +11,7 @@ using uncy.board;
 
 namespace uncy.model.boardAlt
 {
-    internal class Board
+    public class Board
     {
         // FEN information 
         public char[,]? board = null;

@@ -105,14 +105,19 @@ namespace uncy.model.boardAlt
 
         internal class MoveGenerator
         {
-            public static List<Move> GenerateLegalMoves(Board board, bool sideToMove)
+            public static List<Move> GenerateLegalMoves(Board board)
             {
                 // Instantiate List 
                 List<Move> legalMoves = new List<Move>();
+                var newMoves = GeneratePseudoMoves(board, board.sideToMove);
 
-                var newMoves = GeneratePseudoMoves(board, sideToMove);
+                foreach (var move in newMoves) {
+                    if (!board.MakeMove(move, out Undo undo))
+                        continue;
 
-                legalMoves.AddRange(newMoves);
+                    legalMoves.Add(move);
+                    board.UnmakeMove(move, undo);   
+                }
                 return legalMoves;
             }
 
