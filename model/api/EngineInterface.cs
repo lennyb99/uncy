@@ -8,7 +8,7 @@ public static class EngineInterface
     /* 
     * This method will take in a fen and then check if the move is legal. It will reply with a new fen of the board after the move.
     */
-    public static string IsMoveLegal(string fen, int[] origin, int[] target)
+    public static string IsMoveLegal(string fen, int[] origin, int[] target, char promotionPiece)
     {
         // Convert string to Fen object
         Fen fenObject = new Fen(fen);
@@ -24,7 +24,42 @@ public static class EngineInterface
         char movedPiece = board.board[originFile, originRank];
         char capturedPiece = board.board[targetFile, targetRank];
 
-        Move move = new Move(originFile, originRank, targetFile, targetRank, movedPiece, capturedPiece);
+        // Promotion piece handling
+        if (char.ToLower(promotionPiece) != 'q' &&
+            char.ToLower(promotionPiece) != 'r' &&
+             char.ToLower(promotionPiece) != 'b' &&
+              char.ToLower(promotionPiece) != 'n') promotionPiece = 'e';
+
+        // Detect double pawn Push
+        bool doublePushPawnMove = false;
+        if (char.ToLower(movedPiece) == 'p' && Math.Abs(originRank - targetRank) == 2) doublePushPawnMove = true;
+
+        // Detect Castling move
+        bool castlingMove = false;
+        if (char.ToLower(movedPiece) == 'k' && Math.Abs(originFile - targetFile) >= 2) castlingMove = true;
+
+        // Detect En Passant move
+        bool enPassantMove = false;
+        if (char.ToLower(movedPiece) == 'p' &&
+            Math.Abs(originFile - targetFile) == 1 &&
+            Math.Abs(originRank - targetRank) == 1 &&
+            board.enPassantTargetSquare != (-1, -1)) // true, when diagonal hit by a pawn while en Passant is possible
+        {
+            (int, int) ePTSquare = board.enPassantTargetSquare;
+            if (targetFile == ePTSquare.Item1 && Math.Abs(targetRank - ePTSquare.Item2) == 1)
+            {
+                enPassantMove = true;
+                if (char.IsUpper(movedPiece)) {
+                    capturedPiece = 'p';
+                } else {
+                    capturedPiece = 'P';
+                }
+                    
+            }
+        }
+
+
+        Move move = new Move(originFile, originRank, targetFile, targetRank, movedPiece, capturedPiece,promotionPiece:promotionPiece, doubleSquarePushFlag:doublePushPawnMove, castlingMoveFlag:castlingMove, enPassantCaptureFlag:enPassantMove);
 
         return board.IsMoveLegal(move);
     }
