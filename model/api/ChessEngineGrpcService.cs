@@ -67,9 +67,10 @@ namespace Uncy.Model.Api
             Console.WriteLine($"  FEN: {request.Fen}");
             Console.WriteLine($"  Origin: ({request.OriginFile},{request.OriginRank})");
             Console.WriteLine($"  Target: ({request.TargetFile},{request.TargetRank})");
+            Console.WriteLine($"  Promotion Piece: '{request.PromotionPiece}'");
             Console.WriteLine($"Processing move...");
 
-            _logger.LogInformation($"Move legality check requested: {request.Fen} from ({request.OriginFile},{request.OriginRank}) to ({request.TargetFile},{request.TargetRank})");
+            _logger.LogInformation($"Move legality check requested: {request.Fen} from ({request.OriginFile},{request.OriginRank}) to ({request.TargetFile},{request.TargetRank}) with promotion: '{request.PromotionPiece}'");
 
             try
             {
@@ -77,10 +78,13 @@ namespace Uncy.Model.Api
                 int[] origin = { request.OriginFile, request.OriginRank };
                 int[] target = { request.TargetFile, request.TargetRank };
 
-                Console.WriteLine($"Calling engine interface with coordinates: origin[{origin[0]},{origin[1]}] -> target[{target[0]},{target[1]}]");
+                // Get promotion piece (default to 'e' if not provided or invalid)
+                char promotionPiece = string.IsNullOrEmpty(request.PromotionPiece) ? 'e' : request.PromotionPiece[0];
 
-                // Call the engine interface method directly with FEN string
-                string resultingFen = EngineInterface.IsMoveLegal(request.Fen, origin, target);
+                Console.WriteLine($"Calling engine interface with coordinates: origin[{origin[0]},{origin[1]}] -> target[{target[0]},{target[1]}] with promotion: '{promotionPiece}'");
+
+                // Call the engine interface method directly with FEN string and promotion piece
+                string resultingFen = EngineInterface.IsMoveLegal(request.Fen, origin, target, promotionPiece);
 
                 Console.WriteLine($"Engine returned FEN: '{resultingFen}'");
 

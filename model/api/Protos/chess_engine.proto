@@ -43,6 +43,7 @@ message IsMoveLegalRequest {
   int32 origin_rank = 3;  // y-coordinate of origin square
   int32 target_file = 4;  // x-coordinate of target square
   int32 target_rank = 5;  // y-coordinate of target square
+  string promotion_piece = 6;  // promotion piece ('q', 'r', 'b', 'n', or 'e' for no promotion)
 }
 
 message IsMoveLegalResponse {

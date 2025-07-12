@@ -29,6 +29,17 @@ public static class EngineInterface
             char.ToLower(promotionPiece) != 'r' &&
              char.ToLower(promotionPiece) != 'b' &&
               char.ToLower(promotionPiece) != 'n') promotionPiece = 'e';
+        if (promotionPiece != 'e')
+        {
+            if (char.IsUpper(movedPiece))
+            {
+                promotionPiece = char.ToUpper(promotionPiece);
+            }
+            else
+            {
+                promotionPiece = char.ToLower(promotionPiece);
+            }
+        }
 
         // Detect double pawn Push
         bool doublePushPawnMove = false;
@@ -40,27 +51,43 @@ public static class EngineInterface
 
         // Detect En Passant move
         bool enPassantMove = false;
+        Console.WriteLine("CHECK EN PASSANT..");
         if (char.ToLower(movedPiece) == 'p' &&
             Math.Abs(originFile - targetFile) == 1 &&
             Math.Abs(originRank - targetRank) == 1 &&
             board.enPassantTargetSquare != (-1, -1)) // true, when diagonal hit by a pawn while en Passant is possible
         {
-            (int, int) ePTSquare = board.enPassantTargetSquare;
-            if (targetFile == ePTSquare.Item1 && Math.Abs(targetRank - ePTSquare.Item2) == 1)
+
+            (int, int) ePTPiece = board.enPassantTargetSquare;
+
+            if (char.IsUpper(movedPiece))
             {
+                ePTPiece.Item2 -= 1;
+            }
+            else
+            {
+                ePTPiece.Item2 += 1;
+            }
+            Console.WriteLine("EN PASSANT MOVE DETECTED.." + targetFile + "==" + ePTPiece.Item1 + " " + targetRank + " and " + ePTPiece.Item2 + Math.Abs(targetRank - ePTPiece.Item2));
+            if (targetFile == ePTPiece.Item1 && Math.Abs(targetRank - ePTPiece.Item2) == 1)
+            {
+                Console.WriteLine("EN PASSANT ACTIVE..");
                 enPassantMove = true;
-                if (char.IsUpper(movedPiece)) {
+                if (char.IsUpper(movedPiece))
+                {
                     capturedPiece = 'p';
-                } else {
+                }
+                else
+                {
                     capturedPiece = 'P';
                 }
-                    
+
             }
         }
 
 
-        Move move = new Move(originFile, originRank, targetFile, targetRank, movedPiece, capturedPiece,promotionPiece:promotionPiece, doubleSquarePushFlag:doublePushPawnMove, castlingMoveFlag:castlingMove, enPassantCaptureFlag:enPassantMove);
-
+        Move move = new Move(originFile, originRank, targetFile, targetRank, movedPiece, capturedPiece, promotionPiece: promotionPiece, doubleSquarePushFlag: doublePushPawnMove, castlingMoveFlag: castlingMove, enPassantCaptureFlag: enPassantMove);
+        Console.WriteLine(move.ToString() + " promotionPiece: " + promotionPiece + " capturedPiece: " + capturedPiece + " doublePushPawnMove: " + doublePushPawnMove + " castlingMove: " + castlingMove + " enPassantMove: " + enPassantMove);
         return board.IsMoveLegal(move);
     }
 

@@ -200,6 +200,10 @@ namespace uncy.model.boardAlt
             {
                 return (str[0] - 'a', str[1]);
             }
+            if (char.IsDigit(str[0]))
+            {
+                return (Convert.ToInt32(str.Split(",")[0]), Convert.ToInt32(str.Split(",")[1]));
+            }
             return (-1, -1);
         }
 

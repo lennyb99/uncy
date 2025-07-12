@@ -75,7 +75,10 @@ grpcurl -plaintext -d '{"message": "Hello"}' localhost:5001 chessengine.ChessEng
 grpcurl -plaintext localhost:5001 chessengine.ChessEngineService/GetEngineStatus
 
 # Zug-Legalität prüfen (Beispiel: e2 nach e4)
-grpcurl -plaintext -d '{"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "origin_file": 4, "origin_rank": 1, "target_file": 4, "target_rank": 3}' localhost:5001 chessengine.ChessEngineService/IsMoveLegal
+grpcurl -plaintext -d '{"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "origin_file": 4, "origin_rank": 1, "target_file": 4, "target_rank": 3, "promotion_piece": "e"}' localhost:5001 chessengine.ChessEngineService/IsMoveLegal
+
+# Bauern-Promotion prüfen (Beispiel: a7 nach a8 mit Dame-Promotion)
+grpcurl -plaintext -d '{"fen": "8/P7/8/8/8/8/8/8 w - - 0 1", "origin_file": 0, "origin_rank": 6, "target_file": 0, "target_rank": 7, "promotion_piece": "q"}' localhost:5001 chessengine.ChessEngineService/IsMoveLegal
 ```
 
 ### Von deinem ASP.NET Core Backend
@@ -93,14 +96,15 @@ var pingResponse = await client.PingAsync(new PingRequest { Message = "Test" });
 // Engine-Status abrufen
 var statusResponse = await client.GetEngineStatusAsync(new EngineStatusRequest());
 
-// Zug-Legalität prüfen
+// Zug-Legalität prüfen (normaler Zug)
 var moveRequest = new IsMoveLegalRequest
 {
     Fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
     OriginFile = 4,  // e-Spalte (0-basiert)
     OriginRank = 1,  // 2. Reihe (0-basiert)
     TargetFile = 4,  // e-Spalte (0-basiert)
-    TargetRank = 3   // 4. Reihe (0-basiert)
+    TargetRank = 3,  // 4. Reihe (0-basiert)
+    PromotionPiece = "e"  // 'e' für keine Promotion
 };
 
 var moveResponse = await client.IsMoveLegalAsync(moveRequest);
@@ -112,6 +116,23 @@ else
 {
     Console.WriteLine($"Zug ist illegal: {moveResponse.ErrorMessage}");
 }
+
+// Bauern-Promotion prüfen
+var promotionRequest = new IsMoveLegalRequest
+{
+    Fen = "8/P7/8/8/8/8/8/8 w - - 0 1",
+    OriginFile = 0,  // a-Spalte (0-basiert)
+    OriginRank = 6,  // 7. Reihe (0-basiert)
+    TargetFile = 0,  // a-Spalte (0-basiert)
+    TargetRank = 7,  // 8. Reihe (0-basiert)
+    PromotionPiece = "q"  // Dame-Promotion
+};
+
+var promotionResponse = await client.IsMoveLegalAsync(promotionRequest);
+if (promotionResponse.IsLegal)
+{
+    Console.WriteLine($"Promotion ist legal! Neuer FEN: {promotionResponse.ResultingFen}");
+}
 ```
 
 ## Nächste Schritte
@@ -122,6 +143,22 @@ Diese Implementierung stellt die Grundlage bereit. Du kannst:
 2. **Authentifizierung implementieren**: Füge Sicherheitsmaßnahmen hinzu
 3. **Streaming unterstützen**: Für längere Berechnungen oder kontinuierliche Updates
 4. **Error Handling erweitern**: Robustere Fehlerbehandlung
+
+## Parameter-Erklärung
+
+### Koordinatensystem:
+
+- **File/Rank sind 0-basiert** (a1 = 0,0)
+- **Origin**: Startposition des Zugs
+- **Target**: Zielposition des Zugs
+
+### Promotion-Piece-Parameter:
+
+- **'q'**: Dame-Promotion
+- **'r'**: Turm-Promotion
+- **'b'**: Läufer-Promotion
+- **'n'**: Springer-Promotion
+- **'e'**: Keine Promotion (für normale Züge)
 
 ## Portkonfiguration
 

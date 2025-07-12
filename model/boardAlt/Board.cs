@@ -218,8 +218,8 @@ namespace uncy.model.boardAlt
             }
             else
             {
-                fen.Append((char)('a' + enPassantTargetSquare.Item1));      // file
-                fen.Append((char)('1' + enPassantTargetSquare.Item2));      // rank
+                fen.Append(enPassantTargetSquare.Item1 + ",");      // file
+                fen.Append(enPassantTargetSquare.Item2);      // rank
             }
 
             // 5. Halbzug-Zähler
