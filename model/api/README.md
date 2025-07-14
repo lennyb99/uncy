@@ -16,10 +16,11 @@ Die gRPC-API ermöglicht es externen Anwendungen, mit der Chess Engine über das
 ### 2. Service-Implementierung (`ChessEngineGrpcService.cs`)
 
 - Implementiert die in der Proto-Datei definierten Services
-- Stellt aktuell drei Methoden bereit:
+- Stellt aktuell vier Methoden bereit:
   - `Ping`: Für einfache Konnektivitätstests
   - `GetEngineStatus`: Gibt grundlegende Engine-Informationen zurück
   - `IsMoveLegal`: Prüft ob ein Zug legal ist und gibt den resultierenden FEN zurück
+  - `FindBestMove`: Findet den besten Zug für eine gegebene Position und gibt den resultierenden FEN zurück
 
 ### 3. Server-Host (`GrpcServerHost.cs`)
 
@@ -79,6 +80,9 @@ grpcurl -plaintext -d '{"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQ
 
 # Bauern-Promotion prüfen (Beispiel: a7 nach a8 mit Dame-Promotion)
 grpcurl -plaintext -d '{"fen": "8/P7/8/8/8/8/8/8 w - - 0 1", "origin_file": 0, "origin_rank": 6, "target_file": 0, "target_rank": 7, "promotion_piece": "q"}' localhost:5001 chessengine.ChessEngineService/IsMoveLegal
+
+# Besten Zug finden (Beispiel: Startposition)
+grpcurl -plaintext -d '{"fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}' localhost:5001 chessengine.ChessEngineService/FindBestMove
 ```
 
 ### Von deinem ASP.NET Core Backend
@@ -132,6 +136,22 @@ var promotionResponse = await client.IsMoveLegalAsync(promotionRequest);
 if (promotionResponse.IsLegal)
 {
     Console.WriteLine($"Promotion ist legal! Neuer FEN: {promotionResponse.ResultingFen}");
+}
+
+// Besten Zug finden
+var bestMoveRequest = new FindBestMoveRequest
+{
+    Fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"  // Startposition
+};
+
+var bestMoveResponse = await client.FindBestMoveAsync(bestMoveRequest);
+if (bestMoveResponse.Success)
+{
+    Console.WriteLine($"Bester Zug gefunden! Neuer FEN: {bestMoveResponse.ResultingFen}");
+}
+else
+{
+    Console.WriteLine($"Kein bester Zug gefunden: {bestMoveResponse.ErrorMessage}");
 }
 ```
 

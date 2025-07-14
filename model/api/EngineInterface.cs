@@ -1,7 +1,8 @@
 using uncy.model.boardAlt;
 using uncy.model.board;
 using uncy.board;
-
+using uncy.model.search;
+using uncy.model.eval;
 
 public static class EngineInterface
 {
@@ -94,13 +95,20 @@ public static class EngineInterface
     /* 
     * This method takes in a fen and then looks for the best move. It will reply with only another fen of the board after the move. 
     */
-    public static string GetBestMove(string fen)
+    public static string FindBestMove(string fen)
     {
-        // Convert string to Fen object
         Fen fenObject = new Fen(fen);
         Board board = new Board(fenObject);
 
-        // TODO: Implement best move logic
-        return fen; // Placeholder - return original FEN for now
+        IEvaluator evaluator = new CompositeEvaluator(
+            (new MaterialEvaluator(), 100));
+
+        Search search = new Search(evaluator);
+
+        Move move = search.FindBestMove(board, 4);
+        board.MakeMove(move, out Undo undo);
+        fen = board.ToFen();
+        board.UnmakeMove(move, undo);
+        return fen;
     }
 }

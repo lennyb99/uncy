@@ -133,5 +133,70 @@ namespace Uncy.Model.Api
                 return Task.FromResult(errorResponse);
             }
         }
+
+        public override Task<FindBestMoveResponse> FindBestMove(FindBestMoveRequest request, ServerCallContext context)
+        {
+            Console.WriteLine("=== FIND BEST MOVE REQUEST RECEIVED ===");
+            Console.WriteLine($"Client IP: {context.Peer}");
+            Console.WriteLine($"Request parameters:");
+            Console.WriteLine($"  FEN: {request.Fen}");
+            Console.WriteLine($"Processing best move search...");
+
+            _logger.LogInformation($"Best move search requested for position: {request.Fen}");
+
+            try
+            {
+                Console.WriteLine($"Calling engine interface with FEN: '{request.Fen}'");
+
+                // Call the engine interface method directly with FEN string
+                string resultingFen = EngineInterface.FindBestMove(request.Fen);
+
+                Console.WriteLine($"Engine returned FEN: '{resultingFen}'");
+
+                // Check if a best move was found (assuming non-empty and different result means success)
+                bool success = !string.IsNullOrEmpty(resultingFen) && resultingFen != request.Fen;
+
+                var response = new FindBestMoveResponse
+                {
+                    Success = success,
+                    ResultingFen = success ? resultingFen : "",
+                    ErrorMessage = success ? "" : "No valid move found or engine returned same position"
+                };
+
+                Console.WriteLine($"Sending response:");
+                Console.WriteLine($"  Success: {response.Success}");
+                Console.WriteLine($"  Resulting FEN: '{response.ResultingFen}'");
+                Console.WriteLine($"  Error Message: '{response.ErrorMessage}'");
+                Console.WriteLine("=== FIND BEST MOVE RESPONSE SENT ===");
+                Console.WriteLine();
+
+                _logger.LogInformation($"Best move search result: {success}, Resulting FEN: {resultingFen}");
+                return Task.FromResult(response);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ ERROR in FindBestMove:");
+                Console.WriteLine($"  Exception: {ex.GetType().Name}");
+                Console.WriteLine($"  Message: {ex.Message}");
+                Console.WriteLine($"  StackTrace: {ex.StackTrace}");
+
+                _logger.LogError(ex, "Error finding best move");
+
+                var errorResponse = new FindBestMoveResponse
+                {
+                    Success = false,
+                    ResultingFen = "",
+                    ErrorMessage = $"Error processing best move search: {ex.Message}"
+                };
+
+                Console.WriteLine($"Sending error response:");
+                Console.WriteLine($"  Success: {errorResponse.Success}");
+                Console.WriteLine($"  Error Message: '{errorResponse.ErrorMessage}'");
+                Console.WriteLine("=== FIND BEST MOVE ERROR RESPONSE SENT ===");
+                Console.WriteLine();
+
+                return Task.FromResult(errorResponse);
+            }
+        }
     }
 }
