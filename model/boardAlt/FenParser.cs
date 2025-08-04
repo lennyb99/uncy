@@ -32,6 +32,8 @@ namespace uncy.model.boardAlt
             string firstRank = str.Split("/")[0]; // retrieves the first rank of the positional info from the fen notation. 
 
             // Loops through the first rank and counts its length
+            
+            /*
             for (int i = 0; i < firstRank.Length; i++)
             {
                 if (char.IsLetter(firstRank[i]))
@@ -57,7 +59,43 @@ namespace uncy.model.boardAlt
                     fileCount += int.Parse(digit);
                 }
             }
+            */
+
+            fileCount = CalculateScore(firstRank);
             return (fileCount, rankCount);
+
+        }
+
+        public static int CalculateScore(string input)
+        {
+            if (input is null) throw new ArgumentNullException(nameof(input));
+
+            int score = 0;
+            for (int i = 0; i < input.Length;)
+            {
+                char c = input[i];
+
+                if (char.IsDigit(c))
+                {
+                    int start = i;
+                    while (i < input.Length && char.IsDigit(input[i])) i++;
+
+                    string numberPart = input.Substring(start, i - start);
+                    if (int.TryParse(numberPart, out int value))
+                        score += value;
+                }
+                else if (char.IsLetter(c))
+                {
+                    score += 1;
+                    i++;
+                }
+                else
+                {
+                    i++;
+                }
+            }
+
+            return score;
         }
 
         public static int IdentifyDigitGroup(string str)

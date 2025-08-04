@@ -29,7 +29,7 @@ class Program
 
         //MainController controller = new MainController(form);
 
-        /*
+        
         Fen fen = new Fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         Fen fenRook = new Fen("k7/8/8/8/3R4/8/8/K7 w KQkq - 0 1");
         Fen fenQueen = new Fen("k7/8/8/8/3Q4/8/8/K7 w KQkq - 0 1");
@@ -37,9 +37,11 @@ class Program
         Fen fenKnight = new Fen("k7/8/8/8/3N4/8/8/K7 w KQkq - 0 1");
 
         Fen debugFen = new Fen("2Q3K1/8/8/5n2/8/8/8/7k b - - 0 1");
+        Fen debugFenTwo = new Fen("r1bqk2r/1ppp1ppp/2n2n2/2b1p3/p1B1P3/P4N2/1PPP1PPP/RNBQK2R w KQkq - 0 1");
+        Fen maxSizeFen = new Fen("K29/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/29k w - - 0 1");
 
-        Board board = new Board(debugFen);
-        */
+        Board board = new Board(debugFenTwo);
+
 
         //List<Move> moves = MoveGenerator.GenerateLegalMoves(board, true);
         //Console.WriteLine(moves.Count);
@@ -52,8 +54,9 @@ class Program
         //Console.WriteLine($"Dauer (ms): {sw.ElapsedMilliseconds} ms");
 
 
+        Perft.PerftDivide(4, board);
+        //board.MakeMove(new Move(1, 1, 1, 2, 'P'), out Undo undo);
 
-        //Perft.PerftDivide(7, board);
 
         /*
         IEvaluator evaluator = new CompositeEvaluator(
@@ -71,7 +74,7 @@ class Program
         */
 
 
-        StartGrpcServer();
+        //StartGrpcServer();
 
         //Application.Run(form);
     }

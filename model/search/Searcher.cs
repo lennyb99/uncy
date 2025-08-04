@@ -89,6 +89,51 @@ namespace uncy.model.search
         }
 
 
+        public int MiniMaxWithAlphaBeta(Board board, int depth, int alpha, int beta, bool maxPlayer)
+        {
+            if (depth == 0)
+            {
+                return evaluator.Evaluate(board);
+            }
+
+            if (maxPlayer)
+            {
+                int maxScore = int.MinValue;
+                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                {
+                    if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
+                        continue;
+                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                    board.UnmakeMove(m, undo);
+                    maxScore = Math.Max(maxScore, score);
+                    
+                    // Alpha beta pruning happens here:
+                    alpha = Math.Max(alpha, score);
+                    if (beta <= alpha) break;
+
+                }
+                return maxScore;
+            }
+            else
+            {
+                int minScore = int.MaxValue;
+                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                {
+                    if (!board.MakeMove(m, out Undo undo))
+                        continue;
+                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                    board.UnmakeMove(m, undo);
+                    minScore = Math.Min(minScore, score);
+
+                    // Pruning
+                    beta = Math.Min(beta, score);
+                    if (beta <= alpha) break;
+
+                }
+                return minScore;
+            }
+        }
+
 
     }
 

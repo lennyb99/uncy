@@ -18,6 +18,7 @@ namespace uncy.model.Tools
         {
 #if DEBUG   // in Release rausoptimiert
             string fenBefore = board.ToFen();
+            ulong zobristBefore = board.currentZobristKey;
 #endif
             if (depth == 0) return 1;
 
@@ -34,17 +35,22 @@ namespace uncy.model.Tools
                 board.UnmakeMove(move, undo);
 
 #if DEBUG
-                if (fenBefore != board.ToFen())
+                bool fenMismatch = fenBefore != board.ToFen();
+                bool zobristMismatch = zobristBefore != board.currentZobristKey;
+
+                if (fenMismatch || zobristMismatch)
                 {
                     string line = string.Join(" ", path.Select(m => m.ToString()));
                     throw new InvalidOperationException(
                         $"UNDO-Error after {move}. Depth: {depth}\n" +
-                        $"Path: {line}\n" +
-                        $"FEN before  : {fenBefore}\n" +
-                        $"FEN after : {board.ToFen()}");
+                        $"Path:            {line}\n\n" +
+                        $"FEN before       : {fenBefore}\n" +
+                        $"FEN after        : {board.ToFen()}\n\n" +
+                        $"Zobrist before   : 0x{zobristBefore:X16}\n" +
+                        $"Zobrist after    : 0x{board.currentZobristKey:X16}");
                 }
 #endif
-                path.RemoveAt(path.Count - 1);   // letzten Zug zurücknehmen
+                path.RemoveAt(path.Count - 1);   
             }
             return nodes;
         }
@@ -66,7 +72,5 @@ namespace uncy.model.Tools
             }
             Console.WriteLine($"Total {depth}: {total}");
         }
-
-        
     }
 }

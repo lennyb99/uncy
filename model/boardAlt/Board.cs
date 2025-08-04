@@ -25,6 +25,16 @@ namespace uncy.model.boardAlt
         public bool blackKingShortCastle;
         public bool blackKingLongCastle;
 
+
+        // Zobrist hashing
+        ZobristKeys zobristKeys;
+        public ulong currentZobristKey;
+        // These fields are used to easier detect information for (and exclusively in) zobrist hashing function. Sorry for the jank solution :)
+        // TODO: refactor code to get rid of this.
+        private sbyte castleType = -1; // This will be updated once the board performs a castling move. 0=white king side castle, 1= white QS-Castle, 2= BKS, 3=BQS, -1=nocastle
+        private (int, int) previousEnPassantTargetSquare = (-1, -1); // Keeps information on the last epTargetSquare so that zobrist hash can update that in hindsight.
+
+
         // (fileCount, rankCount)
         public (int, int) dimensionsOfBoard = (0, 0);
 
@@ -33,12 +43,12 @@ namespace uncy.model.boardAlt
         private (int, int) shortCastleBlackRookPos = (-1, -1);
         private (int, int) longCastleBlackRookPos = (-1, -1);
 
-
+        
 
         public Board(Fen fen)
         {
             dimensionsOfBoard = FenParser.GetDimensionsOfBoard(fen);
-
+            Console.WriteLine("Detected Board dimensions of" + dimensionsOfBoard);
             if (dimensionsOfBoard == (0, 0))
             {
                 Console.WriteLine("Invalid Board size detected.");
@@ -46,6 +56,11 @@ namespace uncy.model.boardAlt
             }
 
             InitializeBoard(dimensionsOfBoard.Item1, dimensionsOfBoard.Item2, fen);
+            
+            // Create the zobrist keys for this board
+            zobristKeys = new ZobristKeys(dimensionsOfBoard.Item1, dimensionsOfBoard.Item2);
+            currentZobristKey = CreateZobristKeyFromCurrentBoard();
+            
         }
 
 
@@ -60,9 +75,47 @@ namespace uncy.model.boardAlt
             fullMoveCount = BoardInitializer.SetFullMoveCount(fen);
             BoardInitializer.UpdateCastlingInformation(fen, this);
 
+
+
             SetCastlingRooksAndUpdateCastlingRights();
 
             PrintBoardToConsole();
+        }
+
+        public ulong CreateZobristKeyFromCurrentBoard()
+        {
+            ulong zkey = 0;
+            for(int i = 0; i < board.GetLength(0);i++){
+                for(int j = 0; j < board.GetLength(1); j++)
+                {
+                    if (board[i,j] != 'e' && board[i,j] != 'x')
+                    {
+                        zkey ^= zobristKeys.GetZobristKeyFromTable(i,j,board[i,j]);
+                    }
+                }
+            }
+
+            if (!sideToMove) zkey ^= zobristKeys.zobrist_side;
+
+
+            zkey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
+
+
+            if (enPassantTargetSquare != (-1, -1)) zkey ^= zobristKeys.zobrist_EP[enPassantTargetSquare.Item1];
+
+            return zkey;
+        }
+
+        private int ReadCastlingRightsToInt()
+        {
+            int codedCastlingRights =
+                (blackKingLongCastle ? 1 : 0) |   // 2⁰
+                (blackKingShortCastle ? 1 : 0) << 1 |   // 2¹
+                (whiteKingLongCastle ? 1 : 0) << 2 |   // 2²
+                (whiteKingShortCastle ? 1 : 0) << 3;    // 2³
+
+            //Console.WriteLine($"I have read {codedCastlingRights} and returned it");
+            return codedCastlingRights;
         }
 
         private void PrintBoardToConsole()
@@ -233,11 +286,10 @@ namespace uncy.model.boardAlt
             return fen.ToString();
         }
 
-
         public bool MakeMove(Move move, out Undo undo)
         {
             undo = new Undo(this.whiteKingShortCastle, this.whiteKingLongCastle, this.blackKingShortCastle, this.blackKingLongCastle,
-                            this.enPassantTargetSquare, this.halfMoveClock, 999999);
+                            this.enPassantTargetSquare, this.halfMoveClock, this.currentZobristKey);
             ApplyPieceMove(move);
 
             UpdateCastleRights(move);
@@ -245,8 +297,7 @@ namespace uncy.model.boardAlt
             UpdateHalfMoveClock(move);
 
             sideToMove = !sideToMove;
-            // TODO: Zobrist key
-
+            currentZobristKey ^= zobristKeys.zobrist_side;
 
             // Legality Checks
             if (!IsPositionLegalAfterMoveFrom(IsPieceWhite(move.movedPiece), move))
@@ -254,6 +305,9 @@ namespace uncy.model.boardAlt
                 UnmakeMove(move, undo);
                 return false;
             }
+
+            zobristKeys.CheckForCorrectZobristKeys(this, move);
+
             return true;
         }
 
@@ -266,18 +320,21 @@ namespace uncy.model.boardAlt
             this.blackKingLongCastle = undo.blackKingLongCastle;
             this.enPassantTargetSquare = undo.enPassantTargetSquare;
             this.halfMoveClock = undo.halfMoveClock;
+            this.currentZobristKey = undo.zobristKey;
             this.sideToMove = !sideToMove;
-
-            // TODO: zobrist key
         }
 
         private void ApplyPieceMove(Move move)
         {
             // Set current square empty
             board[move.fromFile, move.fromRank] = 'e';
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.fromFile, move.fromRank, move.movedPiece);
+            if(enPassantTargetSquare != (-1,-1)) currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare.Item1];
 
             // Update destination square
             board[move.toFile, move.toRank] = move.movedPiece;
+            if (move.capturedPiece != 'e' && !move.enPassantCaptureFlag) currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.capturedPiece);
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.movedPiece);
 
             // Check for Castling move
             if (move.castlingMoveFlag)
@@ -295,6 +352,8 @@ namespace uncy.model.boardAlt
             if (move.promotionPiece != 'e')
             {
                 board[move.toFile, move.toRank] = move.promotionPiece;
+                currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.movedPiece);
+                currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.promotionPiece);
             }
         }
 
@@ -375,6 +434,7 @@ namespace uncy.model.boardAlt
         private void ApplyCastlingMove(Move move)
         {
             int rookOffset;
+            currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
             if (move.toFile - move.fromFile > 0) // Get information whether its a king or queenside castle move, to know where to put the rook
             {
                 // Short castle
@@ -408,6 +468,7 @@ namespace uncy.model.boardAlt
                     MovePieceWithoutMoveContext(longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
                 }
             }
+            currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
         }
 
 
@@ -423,8 +484,8 @@ namespace uncy.model.boardAlt
             {
                 offset = 1;
             }
-
             board[move.toFile, move.toRank + offset] = 'e';
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank + offset, move.capturedPiece);
         }
 
         private void RevertCastlingMove(Move move, Undo undo)
@@ -483,12 +544,12 @@ namespace uncy.model.boardAlt
          * If a king was moved, all castling rights to that king are withdrawn. 
          * If a rook was moved, the program will determine if that rook was a rook intended for castling (since only one rook on each side of the king is a castling rook)
          *      if yes, castling rights for that side are withdrawn. 
-         * 
          */
         private void UpdateCastleRights(Move move)
         {
             if (char.ToLower(move.movedPiece) != 'k' && char.ToLower(move.movedPiece) != 'r') return;
             (int, int) pos;
+            currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
             switch (move.movedPiece)
             {
                 case 'K':
@@ -535,9 +596,9 @@ namespace uncy.model.boardAlt
                     break;
 
                 default:
-                    return;
+                    break;
             }
-
+            currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
         }
 
         private void UpdateEnPassant(Move move)
@@ -552,6 +613,7 @@ namespace uncy.model.boardAlt
                 {
                     enPassantTargetSquare = (move.toFile, move.toRank + 1);
                 }
+                currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare.Item1]; // Update key for new EP target square
             }
             else
             {
@@ -578,7 +640,10 @@ namespace uncy.model.boardAlt
         {
             char piece = board[fromFile, fromRank];
             board[fromFile, fromRank] = 'e';
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(fromFile, fromRank, piece);
+
             board[toFile, toRank] = piece;
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(toFile, toRank, piece);
         }
 
 
