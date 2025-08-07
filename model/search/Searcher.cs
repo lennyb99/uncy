@@ -12,10 +12,12 @@ namespace uncy.model.search
     public class Search 
     {
         private IEvaluator evaluator;
+        private TranspositionTable transpositionTable;
 
-        public Search(IEvaluator eval)
+        public Search(IEvaluator eval, TranspositionTable tt)
         {
             this.evaluator = eval;
+            this.transpositionTable = tt;
         }
 
         public Move FindBestMove(Board board,int depth)
@@ -32,7 +34,7 @@ namespace uncy.model.search
                 if (!board.MakeMove(move, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                     continue;
                 
-                int score = MiniMax(board, depth - 1, !maximizingSide);
+                int score = MiniMaxWithAlphaBeta(board, depth - 1, int.MinValue, int.MaxValue, !maximizingSide);
 
                 board.UnmakeMove(move, undo);
 
@@ -48,10 +50,114 @@ namespace uncy.model.search
 
         }
 
+        public int MiniMaxWithAlphaBeta(Board board, int depth, int alpha, int beta, bool maxPlayer)
+        {
+            // Reading from the transposition table to determine whether this node needs to be calculated
+            ulong zobristKey = board.currentZobristKey;
+            if (transpositionTable.TryGetEntry(zobristKey, out TranspositionTableEntry entry) && entry.depth >= depth)
+            {
+                switch(entry.flag)
+                {
+                    case TranspositionTableFlag.EXACT:
+                        return entry.score;
+
+                    case TranspositionTableFlag.LOWERBOUND:
+                        if (entry.score >= beta) return entry.score;
+                        alpha = Math.Max(alpha, entry.score);
+                        break;
+
+                    case TranspositionTableFlag.UPPERBOUND:
+                        if (entry.score <= alpha) return entry.score;
+                        beta = Math.Min(beta, entry.score);
+                        break;
+                }
+            }
+
+            if (depth == 0)
+            {
+                return evaluator.Evaluate(board);
+            }
+
+            // Needed to determine if flag for score is UpperBound
+            int originalAlpha = alpha;
+
+            // Track the best move within the current node
+            Move bestMoveInNode = default;
+
+            if (maxPlayer)
+            {
+                int maxScore = int.MinValue;
+                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                {
+                    if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
+                        continue;
+                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                    board.UnmakeMove(m, undo);
+                    
+                    if(score > maxScore)
+                    {
+                        maxScore = score;
+                        bestMoveInNode = m;
+                    }
+                    
+
+                    // Alpha beta pruning happens here:
+                    alpha = Math.Max(alpha, score);
+                    if (beta <= alpha)
+                    {
+                        transpositionTable.StoreEntry(zobristKey, maxScore, depth, TranspositionTableFlag.LOWERBOUND, m);
+                        return maxScore;
+                    }
+
+                }
+
+                TranspositionTableFlag flag;
+                if(maxScore > originalAlpha)
+                {
+                    flag = TranspositionTableFlag.EXACT;
+                }
+                else
+                {
+                    flag = TranspositionTableFlag.UPPERBOUND;
+                }
+
+                transpositionTable.StoreEntry(zobristKey, maxScore, depth, flag, bestMoveInNode);
+                return maxScore;
+            }
+            else
+            {
+                int minScore = int.MaxValue;
+                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                {
+                    if (!board.MakeMove(m, out Undo undo))
+                        continue;
+                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                    board.UnmakeMove(m, undo);
+                    
+                    if(score < minScore)
+                    {
+                        minScore = score;
+                        bestMoveInNode = m;
+                    }
+
+                    // Pruning
+                    beta = Math.Min(beta, score);
+                    if (beta <= alpha) 
+                    {
+                        transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m);
+                        return minScore;
+                    }
+
+                }
+                transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.EXACT, bestMoveInNode);
+                return minScore;
+            }
+        }
+
 
 
         /*
-         * maxPlayer = true means white player. White favoring positions have positive scores therefore white is trying to be the maximizing player in minimax algorithm
+         * DEPRECATED
          */
         public int MiniMax(Board board, int depth, bool maxPlayer)
         {
@@ -63,7 +169,7 @@ namespace uncy.model.search
             if (maxPlayer)
             {
                 int maxScore = int.MinValue;
-                foreach(Move m in MoveGenerator.GenerateLegalMoves(board))
+                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
                 {
                     if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                         continue;
@@ -76,7 +182,7 @@ namespace uncy.model.search
             else
             {
                 int minScore = int.MaxValue;
-                foreach(Move m in MoveGenerator.GenerateLegalMoves(board))
+                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
                 {
                     if (!board.MakeMove(m, out Undo undo))
                         continue;
@@ -87,55 +193,5 @@ namespace uncy.model.search
                 return minScore;
             }
         }
-
-
-        public int MiniMaxWithAlphaBeta(Board board, int depth, int alpha, int beta, bool maxPlayer)
-        {
-            if (depth == 0)
-            {
-                return evaluator.Evaluate(board);
-            }
-
-            if (maxPlayer)
-            {
-                int maxScore = int.MinValue;
-                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                {
-                    if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
-                        continue;
-                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
-                    board.UnmakeMove(m, undo);
-                    maxScore = Math.Max(maxScore, score);
-                    
-                    // Alpha beta pruning happens here:
-                    alpha = Math.Max(alpha, score);
-                    if (beta <= alpha) break;
-
-                }
-                return maxScore;
-            }
-            else
-            {
-                int minScore = int.MaxValue;
-                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                {
-                    if (!board.MakeMove(m, out Undo undo))
-                        continue;
-                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
-                    board.UnmakeMove(m, undo);
-                    minScore = Math.Min(minScore, score);
-
-                    // Pruning
-                    beta = Math.Min(beta, score);
-                    if (beta <= alpha) break;
-
-                }
-                return minScore;
-            }
-        }
-
-
     }
-
-    public record SearchResult(Move BestMove, int Score, int Nodes, TimeSpan TimeTaken);
 }

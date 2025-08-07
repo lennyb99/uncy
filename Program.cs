@@ -54,9 +54,10 @@ class Program
         //Console.WriteLine($"Dauer (ms): {sw.ElapsedMilliseconds} ms");
 
 
-        Perft.PerftDivide(4, board);
+        //Perft.PerftDivide(4, board);
         //board.MakeMove(new Move(1, 1, 1, 2, 'P'), out Undo undo);
 
+        TranspositionTable tt = new TranspositionTable(256);
 
         /*
         IEvaluator evaluator = new CompositeEvaluator(

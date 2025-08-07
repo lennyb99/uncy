@@ -29,11 +29,6 @@ namespace uncy.model.boardAlt
         // Zobrist hashing
         ZobristKeys zobristKeys;
         public ulong currentZobristKey;
-        // These fields are used to easier detect information for (and exclusively in) zobrist hashing function. Sorry for the jank solution :)
-        // TODO: refactor code to get rid of this.
-        private sbyte castleType = -1; // This will be updated once the board performs a castling move. 0=white king side castle, 1= white QS-Castle, 2= BKS, 3=BQS, -1=nocastle
-        private (int, int) previousEnPassantTargetSquare = (-1, -1); // Keeps information on the last epTargetSquare so that zobrist hash can update that in hindsight.
-
 
         // (fileCount, rankCount)
         public (int, int) dimensionsOfBoard = (0, 0);

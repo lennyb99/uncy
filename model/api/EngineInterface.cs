@@ -103,7 +103,7 @@ public static class EngineInterface
         IEvaluator evaluator = new CompositeEvaluator(
             (new MaterialEvaluator(), 100));
 
-        Search search = new Search(evaluator);
+        Search search = new Search(evaluator, new TranspositionTable(256));
 
         Move move = search.FindBestMove(board, 4);
         board.MakeMove(move, out Undo undo);
