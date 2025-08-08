@@ -37,8 +37,9 @@ class Program
         Fen fenKnight = new Fen("k7/8/8/8/3N4/8/8/K7 w KQkq - 0 1");
 
         Fen debugFen = new Fen("2Q3K1/8/8/5n2/8/8/8/7k b - - 0 1");
-        Fen debugFenTwo = new Fen("r1bqk2r/1ppp1ppp/2n2n2/2b1p3/p1B1P3/P4N2/1PPP1PPP/RNBQK2R w KQkq - 0 1");
+        Fen debugFenTwo = new Fen("r1q1r1k1/1p2bppp/p2p1n2/2pP4/P1b1P3/2N1B3/1P2NPPP/R2QR1K1 w - - 3 16");
         Fen maxSizeFen = new Fen("K29/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/29k w - - 0 1");
+        Fen closedPositionWithBishops = new Fen("5b2/3k4/1p1p1p1p/pPpPpPpP/P1P1P1P1/8/3BK3/8 w - - 0 1");
 
         Board board = new Board(debugFenTwo);
 
@@ -59,20 +60,20 @@ class Program
 
         TranspositionTable tt = new TranspositionTable(256);
 
-        /*
+        
         IEvaluator evaluator = new CompositeEvaluator(
             (new MaterialEvaluator(), 100));
 
-        Search search = new Search(evaluator);
+        Search search = new Search(evaluator, tt);
 
-        Console.WriteLine(evaluator.Evaluate(board));
 
-        Move move = search.FindBestMove(board, 4);
+        Move move = search.FindBestMove(board, 6);
+        
+        
         Console.WriteLine(move.ToString());
         board.MakeMove(move, out Undo undo);
         board.PrintBoardToConsoleShort();
-        Console.WriteLine(evaluator.Evaluate(board));
-        */
+        
 
 
         //StartGrpcServer();

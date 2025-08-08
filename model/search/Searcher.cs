@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Mvc.TagHelpers;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -20,7 +21,40 @@ namespace uncy.model.search
             this.transpositionTable = tt;
         }
 
-        public Move FindBestMove(Board board,int depth)
+        public Move FindBestMove(Board board, int max_depth)
+        {
+            Console.WriteLine("---------");
+            Console.WriteLine("Starting Search for best Move..");
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            Move m = StartIterativeDeepening(board, max_depth);
+
+            stopwatch.Stop();
+            Console.WriteLine("Finished Search in time: " + stopwatch.ToString());
+            Console.WriteLine("---------");
+
+            return m;
+            
+
+
+        }
+
+        public Move StartIterativeDeepening(Board board, int max_depth)
+        {
+            Move bestMove = default;
+            for (int currentDepth = 1; currentDepth<=max_depth; currentDepth++)
+            {
+                Move bestMoveForCurrentDepth = StartMinimaxSearch(board, currentDepth);
+                bestMove = bestMoveForCurrentDepth;
+
+                // TODO: Implement time limit for search
+                // if(timeIsUp()) break;
+            }
+            return bestMove;
+        }
+
+        public Move StartMinimaxSearch(Board board,int depth)
         {
             if (depth <= 0) throw new ArgumentOutOfRangeException(nameof(depth));
 
@@ -28,8 +62,8 @@ namespace uncy.model.search
             Move bestMove = default;
             int bestScore = maximizingSide ? int.MinValue : int.MaxValue;
 
-
-            foreach (Move move in MoveGenerator.GeneratePseudoMoves(board, board.sideToMove))
+            //foreach (Move move in MoveGenerator.GeneratePseudoMoves(board, board.sideToMove))
+            foreach (Move move in SortedMoves(board))
             {
                 if (!board.MakeMove(move, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                     continue;
@@ -45,9 +79,7 @@ namespace uncy.model.search
                     bestMove = move;
                 }
             }
-
             return bestMove;
-
         }
 
         public int MiniMaxWithAlphaBeta(Board board, int depth, int alpha, int beta, bool maxPlayer)
@@ -87,7 +119,8 @@ namespace uncy.model.search
             if (maxPlayer)
             {
                 int maxScore = int.MinValue;
-                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                foreach (Move m in SortedMoves(board))
                 {
                     if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                         continue;
@@ -127,7 +160,8 @@ namespace uncy.model.search
             else
             {
                 int minScore = int.MaxValue;
-                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
+                foreach (Move m in SortedMoves(board))
                 {
                     if (!board.MakeMove(m, out Undo undo))
                         continue;
@@ -154,6 +188,25 @@ namespace uncy.model.search
             }
         }
 
+        public List<Move> SortedMoves(Board b)
+        {
+            List<Move> possibleMoves = MoveGenerator.GeneratePseudoMoves(b, b.sideToMove);
+
+            if (transpositionTable.TryGetEntry(b.currentZobristKey, out TranspositionTableEntry entry))
+            {
+                for(int i = 0; i < possibleMoves.Count; i++) 
+                {
+                    if (possibleMoves[i].Equals(entry.bestMove) && i != 0)
+                    {
+                        var tmp = possibleMoves[i];
+                        possibleMoves[i] = possibleMoves[0];
+                        possibleMoves[0] = tmp;
+                    }
+                }
+            }
+
+            return possibleMoves;
+        }
 
 
         /*
