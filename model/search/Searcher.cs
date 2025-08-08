@@ -60,25 +60,36 @@ namespace uncy.model.search
 
             bool maximizingSide = board.sideToMove;
             Move bestMove = default;
+            int alpha = int.MinValue;
+            int beta = int.MaxValue;
             int bestScore = maximizingSide ? int.MinValue : int.MaxValue;
 
+            MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
+            Move? m;
+
             //foreach (Move move in MoveGenerator.GeneratePseudoMoves(board, board.sideToMove))
-            foreach (Move move in SortedMoves(board))
+            //foreach (Move moves in SortedMoves(board))
+            while ((m = moveSorter.GetNextMove()) != null)
             {
-                if (!board.MakeMove(move, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
+                if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                     continue;
                 
-                int score = MiniMaxWithAlphaBeta(board, depth - 1, int.MinValue, int.MaxValue, !maximizingSide);
+                int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maximizingSide);
 
-                board.UnmakeMove(move, undo);
+                board.UnmakeMove(m.Value, undo);
 
                 bool isBetter = maximizingSide ? score > bestScore : score < bestScore;
                 if (isBetter)
                 {
                     bestScore = score;
-                    bestMove = move;
+                    bestMove = m.Value;
                 }
+
+                alpha = Math.Max(alpha, bestScore);
+                if (alpha >= beta) break;
+
             }
+            transpositionTable.StoreEntry(board.currentZobristKey, bestScore, depth, TranspositionTableFlag.EXACT, bestMove);
             return bestMove;
         }
 
@@ -110,6 +121,9 @@ namespace uncy.model.search
                 return evaluator.Evaluate(board);
             }
 
+            MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
+            Move? m;
+
             // Needed to determine if flag for score is UpperBound
             int originalAlpha = alpha;
 
@@ -120,17 +134,18 @@ namespace uncy.model.search
             {
                 int maxScore = int.MinValue;
                 //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                foreach (Move m in SortedMoves(board))
+                //foreach (Move m in SortedMoves(board))
+                while((m = moveSorter.GetNextMove()) != null)
                 {
-                    if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
+                    if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                         continue;
                     int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
-                    board.UnmakeMove(m, undo);
+                    board.UnmakeMove(m.Value, undo);
                     
                     if(score > maxScore)
                     {
                         maxScore = score;
-                        bestMoveInNode = m;
+                        bestMoveInNode = m.Value;
                     }
                     
 
@@ -138,7 +153,7 @@ namespace uncy.model.search
                     alpha = Math.Max(alpha, score);
                     if (beta <= alpha)
                     {
-                        transpositionTable.StoreEntry(zobristKey, maxScore, depth, TranspositionTableFlag.LOWERBOUND, m);
+                        transpositionTable.StoreEntry(zobristKey, maxScore, depth, TranspositionTableFlag.LOWERBOUND, m.Value);
                         return maxScore;
                     }
 
@@ -161,24 +176,25 @@ namespace uncy.model.search
             {
                 int minScore = int.MaxValue;
                 //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                foreach (Move m in SortedMoves(board))
+                //foreach (Move m in SortedMoves(board))
+                while ((m = moveSorter.GetNextMove()) != null)
                 {
-                    if (!board.MakeMove(m, out Undo undo))
+                    if (!board.MakeMove(m.Value, out Undo undo))
                         continue;
                     int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
-                    board.UnmakeMove(m, undo);
+                    board.UnmakeMove(m.Value, undo);
                     
                     if(score < minScore)
                     {
                         minScore = score;
-                        bestMoveInNode = m;
+                        bestMoveInNode = m.Value;
                     }
 
                     // Pruning
                     beta = Math.Min(beta, score);
                     if (beta <= alpha) 
                     {
-                        transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m);
+                        transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m.Value);
                         return minScore;
                     }
 

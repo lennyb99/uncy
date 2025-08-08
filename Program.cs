@@ -19,17 +19,6 @@ class Program
 {
     static void Main(string[] args)
     {
-        Application.EnableVisualStyles();
-        Application.SetCompatibleTextRenderingDefault(false);
-        Form1 form = new Form1();
-
-
-
-
-
-        //MainController controller = new MainController(form);
-
-        
         Fen fen = new Fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         Fen fenRook = new Fen("k7/8/8/8/3R4/8/8/K7 w KQkq - 0 1");
         Fen fenQueen = new Fen("k7/8/8/8/3Q4/8/8/K7 w KQkq - 0 1");
@@ -43,42 +32,42 @@ class Program
 
         Board board = new Board(debugFenTwo);
 
+        //StartPerftDebug(board, 4);
 
-        //List<Move> moves = MoveGenerator.GenerateLegalMoves(board, true);
-        //Console.WriteLine(moves.Count);
-
-
-        //var sw = Stopwatch.StartNew();
-        //Console.WriteLine(Perft.Run_Perft(1, board));
-        //sw.Stop();
-        //Console.WriteLine($"Dauer: {sw.Elapsed}");
-        //Console.WriteLine($"Dauer (ms): {sw.ElapsedMilliseconds} ms");
-
-
-        //Perft.PerftDivide(4, board);
-        //board.MakeMove(new Move(1, 1, 1, 2, 'P'), out Undo undo);
-
-        TranspositionTable tt = new TranspositionTable(256);
-
+        StartSearch(board, 6);
         
+        //StartGrpcServer();
+    }
+
+    private static void StartSearch(Board board, int depth)
+    {
+        TranspositionTable tt = new TranspositionTable(256);
         IEvaluator evaluator = new CompositeEvaluator(
             (new MaterialEvaluator(), 100));
 
         Search search = new Search(evaluator, tt);
 
 
-        Move move = search.FindBestMove(board, 6);
-        
-        
+        Move move = search.FindBestMove(board, depth);
+
+
         Console.WriteLine(move.ToString());
         board.MakeMove(move, out Undo undo);
         board.PrintBoardToConsoleShort();
-        
+    }
 
+    private static void StartPerftDebug(Board board, int depth)
+    {
+        Console.WriteLine("--------");
+        Console.WriteLine($"Starting PERFT (depth:{depth}) debugging:");
+        var sw = Stopwatch.StartNew();
 
-        //StartGrpcServer();
+        Perft.PerftDivide(depth, board);
 
-        //Application.Run(form);
+        sw.Stop();
+        Console.WriteLine($"Duration of: {sw.Elapsed}");
+        Console.WriteLine($"Dauer (ms): {sw.ElapsedMilliseconds} ms");
+        Console.WriteLine("--------");
     }
 
     public static void StartGrpcServer()

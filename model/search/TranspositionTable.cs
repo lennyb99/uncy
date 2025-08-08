@@ -68,7 +68,7 @@ namespace uncy.model.search
         public bool TryGetEntry(ulong zkey, out TranspositionTableEntry entry)
         {
             int index = GetIndex(zkey);
-            TranspositionTableEntry candidate = table[index];
+            ref TranspositionTableEntry candidate = ref table[index];
             if(candidate.zobristKey == zkey)
             {
                 entry = candidate;
@@ -77,6 +77,19 @@ namespace uncy.model.search
             entry = default;
             return false;
         }
+
+        public Move GetBestMove(ulong zkey)
+        {
+            int index = GetIndex(zkey);
+            ref TranspositionTableEntry entry = ref table[index];
+
+            if(entry.zobristKey == zkey)
+            {
+                return entry.bestMove;
+            }
+            return new Move();
+        }
+
     }
 
     public struct TranspositionTableEntry
