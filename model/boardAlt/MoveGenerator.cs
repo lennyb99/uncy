@@ -109,7 +109,8 @@ namespace uncy.model.boardAlt
             {
                 // Instantiate List 
                 List<Move> legalMoves = new List<Move>();
-                var newMoves = GeneratePseudoMoves(board, board.sideToMove);
+                List<Move> newMoves = new List<Move>();
+                GeneratePseudoMoves(board, board.sideToMove, newMoves);
 
                 foreach (var move in newMoves) {
                     if (!board.MakeMove(move, out Undo undo))
@@ -122,9 +123,8 @@ namespace uncy.model.boardAlt
             }
 
 
-            public static List<Move> GeneratePseudoMoves(Board board, bool sideToMove)
+            public static void GeneratePseudoMoves(Board board, bool sideToMove, List<Move> moves)
             {
-                List<Move> moves = new List<Move>();
                 // Loop through each square
                 for (int i = 0; i < board.dimensionsOfBoard.Item1; i++)
                 {
@@ -134,54 +134,46 @@ namespace uncy.model.boardAlt
 
                         if (IsPieceWhite(board.board[i, j]) && sideToMove || !IsPieceWhite(board.board[i, j]) && !sideToMove) // Check if its turn for this piece to move 
                         {
-                            moves.AddRange(IdentifyPieceAndGeneratePseudoMoves(i, j, board));
+                            IdentifyPieceAndGeneratePseudoMoves(i, j, board, moves);
                         }
                     }
                 }
-                return moves;
             }
 
-            private static List<Move> IdentifyPieceAndGeneratePseudoMoves(int file, int rank, Board board)
+            private static void IdentifyPieceAndGeneratePseudoMoves(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves = new List<Move>();
-
-
-
                 switch (char.ToLower(board.board[file, rank]))
                 {
                     case 'k':
-                        moves = GeneratePseudoMovesForKing(file, rank, board);
+                        GeneratePseudoMovesForKing(file, rank, board, moves);
                         break;
                     case 'q':
-                        moves = GeneratePseudoMovesForQueen(file, rank, board);
+                        GeneratePseudoMovesForQueen(file, rank, board, moves);
                         break;
                     case 'r':
-                        moves = GeneratePseudoMovesForRook(file, rank, board);
+                        GeneratePseudoMovesForRook(file, rank, board, moves);
                         break;
                     case 'b':
-                        moves = GeneratePseudoMovesForBishop(file, rank, board);
+                        GeneratePseudoMovesForBishop(file, rank, board, moves);
                         break;
                     case 'n':
-                        moves = GeneratePseudoMovesForKnight(file, rank, board);
+                        GeneratePseudoMovesForKnight(file, rank, board, moves);
                         break;
                     case 'p':
-                        moves = GeneratePseudoMovesForPawn(file, rank, board);
+                        GeneratePseudoMovesForPawn(file, rank, board, moves);
                         break;
                     default:
                         Console.WriteLine("Unidentified Piece found: " + board.board[file, rank]);
                         break;
                 }
                 //Console.WriteLine("Found " + moves.Count + " moves for: " +board.board[file, rank]);
-                return moves;
             }
 
-            private static List<Move> GeneratePseudoMovesForKing(int file, int rank, Board board)
+            private static void GeneratePseudoMovesForKing(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves = new List<Move>();
                 char currentPiece = board.board[file, rank];
                 bool isWhitePiece = IsPieceWhite(currentPiece);
 
-                if (currentPiece != 'K' && currentPiece != 'k') return new List<Move>(); // Control if currentPiece is, in fact, a king
 
 
                 // Offsets for "standard" king moves
@@ -286,18 +278,14 @@ namespace uncy.model.boardAlt
                         }
                     }
                 }
-                return moves;
             }
 
 
-            private static List<Move> GeneratePseudoMovesForPawn(int file, int rank, Board board)
+            private static void GeneratePseudoMovesForPawn(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves = new List<Move>();
-
                 char currentPiece = board.board[file, rank];
                 bool isWhitePiece = IsPieceWhite(currentPiece);
 
-                if (currentPiece != 'P' && currentPiece != 'p') return new List<Move>(); // Control if currentPiece is, in fact, a pawn
 
                 if (isWhitePiece)
                 {
@@ -309,34 +297,36 @@ namespace uncy.model.boardAlt
                         {
                             if (board.IsSquareAtEndOfBoardForWhite(file, rank + 1))
                             {
-                                moves.AddRange(GeneratePromotionMoves(file, rank, file, rank + 1, currentPiece, isWhitePiece));
+                                GeneratePromotionMoves(file, rank, file, rank + 1, currentPiece, isWhitePiece, moves);
                             }
                             else
                             {
                                 moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank + 1), currentPiece)); // Add valid Move
                             }
-                        }
-                    }
 
-                    // Two Squares Push
-                    if (moves.Count > 0 && rank == 1)  // Means that One Square push was possible. If it wasn't, two square is also not possible, don't have to check further
-                    {
-                        if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank + 2 < 0 || rank + 2 >= board.dimensionsOfBoard.Item2))
-                        {
-                            char targetPiece = board.board[file, rank + 2];
-                            if (targetPiece == 'e')
+                            // Two Squares Push
+                            if (rank == 1)
                             {
-                                if (board.IsSquareAtEndOfBoardForWhite(file, rank + 2))
+                                if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank + 2 < 0 || rank + 2 >= board.dimensionsOfBoard.Item2))
                                 {
-                                    moves.AddRange(GeneratePromotionMoves(file, rank, file, rank + 2, currentPiece, isWhitePiece, doublePushPawnMove: true));
-                                }
-                                else
-                                {
-                                    moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank + 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                    targetPiece = board.board[file, rank + 2];
+                                    if (targetPiece == 'e')
+                                    {
+                                        if (board.IsSquareAtEndOfBoardForWhite(file, rank + 2))
+                                        {
+                                            GeneratePromotionMoves(file, rank, file, rank + 2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
+                                        }
+                                        else
+                                        {
+                                            moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank + 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+
+                    
 
                     // Hit Diagonal
                     // Left
@@ -347,7 +337,7 @@ namespace uncy.model.boardAlt
                         {
                             if (board.IsSquareAtEndOfBoardForWhite(file - 1, rank + 1))
                             {
-                                moves.AddRange(GeneratePromotionMoves(file, rank, file - 1, rank + 1, currentPiece, isWhitePiece, capturedPiece: targetPiece));
+                                GeneratePromotionMoves(file, rank, file - 1, rank + 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                             }
                             else
                             {
@@ -364,7 +354,7 @@ namespace uncy.model.boardAlt
                         {
                             if (board.IsSquareAtEndOfBoardForWhite(file + 1, rank + 1))
                             {
-                                moves.AddRange(GeneratePromotionMoves(file, rank, file + 1, rank + 1, currentPiece, isWhitePiece, capturedPiece: targetPiece));
+                                GeneratePromotionMoves(file, rank, file + 1, rank + 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                             }
                             else
                             {
@@ -396,34 +386,35 @@ namespace uncy.model.boardAlt
                         {
                             if (board.IsSquareAtEndOfBoardForBlack(file, rank - 1))
                             {
-                                moves.AddRange(GeneratePromotionMoves(file, rank, file, rank - 1, currentPiece, isWhitePiece));
+                                GeneratePromotionMoves(file, rank, file, rank - 1, currentPiece, isWhitePiece, moves);
                             }
                             else
                             {
                                 moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank - 1), currentPiece)); // Add valid Move
                             }
-                        }
-                    }
-
-                    // Two Squares Push
-                    if (moves.Count > 0 && rank == 6)  // Means that One Square push was possible. If it wasn't, two square is also not possible, don't have to check further
-                    {
-                        if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank - 2 < 0 || rank - 2 >= board.dimensionsOfBoard.Item2))
-                        {
-                            char targetPiece = board.board[file, rank - 2];
-                            if (targetPiece == 'e')
+                            // Two Squares Push
+                            if (rank == 6)
                             {
-                                if (board.IsSquareAtEndOfBoardForBlack(file, rank - 2))
+                                if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank - 2 < 0 || rank - 2 >= board.dimensionsOfBoard.Item2))
                                 {
-                                    moves.AddRange(GeneratePromotionMoves(file, rank, file, rank - 2, currentPiece, isWhitePiece, doublePushPawnMove: true));
-                                }
-                                else
-                                {
-                                    moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank - 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                    targetPiece = board.board[file, rank - 2];
+                                    if (targetPiece == 'e')
+                                    {
+                                        if (board.IsSquareAtEndOfBoardForBlack(file, rank - 2))
+                                        {
+                                            GeneratePromotionMoves(file, rank, file, rank - 2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
+                                        }
+                                        else
+                                        {
+                                            moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank - 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                        }
+                                    }
                                 }
                             }
-                        }
+                        } 
                     }
+
+                    
 
                     // Hit Diagonal
                     // Left
@@ -434,7 +425,7 @@ namespace uncy.model.boardAlt
                         {
                             if (board.IsSquareAtEndOfBoardForBlack(file - 1, rank - 1))
                             {
-                                moves.AddRange(GeneratePromotionMoves(file, rank, file - 1, rank - 1, currentPiece, isWhitePiece, capturedPiece: targetPiece));
+                                GeneratePromotionMoves(file, rank, file - 1, rank - 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                             }
                             else
                             {
@@ -451,7 +442,7 @@ namespace uncy.model.boardAlt
                         {
                             if (board.IsSquareAtEndOfBoardForBlack(file + 1, rank - 1))
                             {
-                                moves.AddRange(GeneratePromotionMoves(file, rank, file + 1, rank - 1, currentPiece, isWhitePiece, capturedPiece: targetPiece));
+                                GeneratePromotionMoves(file, rank, file + 1, rank - 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                             }
                             else
                             {
@@ -473,12 +464,10 @@ namespace uncy.model.boardAlt
                         }
                     }
                 }
-                return moves;
             }
 
-            private static List<Move> GeneratePromotionMoves(int fromFile, int fromRank, int toFile, int toRank, char currentPiece, bool isWhitePiece, char capturedPiece = 'e', bool doublePushPawnMove = false)
+            private static void GeneratePromotionMoves(int fromFile, int fromRank, int toFile, int toRank, char currentPiece, bool isWhitePiece, List<Move> moves, char capturedPiece = 'e', bool doublePushPawnMove = false)
             {
-                List<Move> moves = new List<Move>();
 
                 char[] pieces = { 'q', 'r', 'b', 'n' };
                 if (isWhitePiece)
@@ -502,19 +491,13 @@ namespace uncy.model.boardAlt
                         moves.Add(new Move((byte)fromFile, (byte)fromRank, (byte)toFile, (byte)toRank, currentPiece, capturedPiece: capturedPiece, promotionPiece: pieces[i], doubleSquarePushFlag: doublePushPawnMove));
                     }
                 }
-
-
-                return moves;
-
             }
 
-            private static List<Move> GeneratePseudoMovesForKnight(int file, int rank, Board board)
+            private static void GeneratePseudoMovesForKnight(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves = new List<Move>();
                 char currentPiece = board.board[file, rank];
                 bool isWhitePiece = IsPieceWhite(currentPiece);
 
-                if (currentPiece != 'N' && currentPiece != 'n') return new List<Move>(); // Control if currentPiece is, in fact, a knight
 
                 int[] dFile = { 1, 2, 2, 1, -1, -2, -2, -1 };
                 int[] dRank = { 2, 1, -1, -2, -2, -1, 1, 2 };
@@ -546,57 +529,44 @@ namespace uncy.model.boardAlt
                         }
                     }
                 }
-                return moves;
 
             }
 
-            private static List<Move> GeneratePseudoMovesForRook(int file, int rank, Board board)
+            private static void GeneratePseudoMovesForRook(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves;
                 char currentPiece = board.board[file, rank];
-                if (currentPiece != 'R' && currentPiece != 'r') return new List<Move>(); // Control if currentPiece is, in fact, a rook
                 int[] dFile = { 0, 0, -1, 1 };
                 int[] dRank = { -1, 1, 0, 0 };
 
-                moves = GenerateSlidingMoves(file, rank, dFile, dRank, board);
-
-                return moves;
+                GenerateSlidingMoves(file, rank, dFile, dRank, board, moves);
             }
 
-            private static List<Move> GeneratePseudoMovesForBishop(int file, int rank, Board board)
+            private static void GeneratePseudoMovesForBishop(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves;
                 char currentPiece = board.board[file, rank];
 
-                if (currentPiece != 'B' && currentPiece != 'b') return new List<Move>(); // Control if currentPiece is, in fact, a bishop
 
                 int[] dFile = { 1, 1, -1, -1 };
                 int[] dRank = { 1, -1, -1, 1 };
 
-                moves = GenerateSlidingMoves(file, rank, dFile, dRank, board);
-
-                return moves;
+                GenerateSlidingMoves(file, rank, dFile, dRank, board, moves);
             }
 
-            private static List<Move> GeneratePseudoMovesForQueen(int file, int rank, Board board)
+            private static void GeneratePseudoMovesForQueen(int file, int rank, Board board, List<Move> moves)
             {
-                List<Move> moves;
                 char currentPiece = board.board[file, rank];
 
-                if (currentPiece != 'Q' && currentPiece != 'q') return new List<Move>(); // Control if currentPiece is, in fact, a queen
 
                 int[] dFile = { 1, 1, -1, -1, 0, 0, -1, 1 };
                 int[] dRank = { 1, -1, -1, 1, -1, 1, 0, 0 };
 
-                moves = GenerateSlidingMoves(file, rank, dFile, dRank, board);
+                GenerateSlidingMoves(file, rank, dFile, dRank, board, moves);
 
-                return moves;
             }
 
 
-            private static List<Move> GenerateSlidingMoves(int file, int rank, int[] dFile, int[] dRank, Board board)
+            private static void GenerateSlidingMoves(int file, int rank, int[] dFile, int[] dRank, Board board, List<Move> moves)
             {
-                List<Move> moves = new List<Move>();
                 char currentPiece = board.board[file, rank];
 
                 bool isWhitePiece = IsPieceWhite(currentPiece);
@@ -632,7 +602,6 @@ namespace uncy.model.boardAlt
 
                     }
                 }
-                return moves;
             }
 
 

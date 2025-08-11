@@ -206,7 +206,8 @@ namespace uncy.model.search
 
         public List<Move> SortedMoves(Board b)
         {
-            List<Move> possibleMoves = MoveGenerator.GeneratePseudoMoves(b, b.sideToMove);
+            List<Move> possibleMoves = new List<Move>();
+            MoveGenerator.GeneratePseudoMoves(b, b.sideToMove, possibleMoves);
 
             if (transpositionTable.TryGetEntry(b.currentZobristKey, out TranspositionTableEntry entry))
             {

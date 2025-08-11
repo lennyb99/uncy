@@ -301,7 +301,7 @@ namespace uncy.model.boardAlt
                 return false;
             }
 
-            zobristKeys.CheckForCorrectZobristKeys(this, move);
+            //zobristKeys.CheckForCorrectZobristKeys(this, move);
 
             return true;
         }

@@ -10,28 +10,48 @@ namespace uncy.model.Tools
 {
     internal class Perft
     {
-        private static readonly List<Move> path = new();   
-        private static int checkCounter = 0;
+        private static readonly List<Move> path = new();
 
+        // Diese Liste ist weiterhin GOLD WERT, um Millionen von Allokationen
+        // IM MoveGenerator zu verhindern. Wir verwenden sie als "Sammelbehälter".
+        private static readonly List<Move> reusableMoveList = new List<Move>(256);
 
         public static ulong Run_Perft(int depth, Board board)
         {
-#if DEBUG   // in Release rausoptimiert
+#if DEBUG
             string fenBefore = board.ToFen();
             ulong zobristBefore = board.currentZobristKey;
 #endif
-            if (depth == 0) return 1;
+            if (depth == 0)
+            {
+                return 1;
+            }
 
             ulong nodes = 0;
 
-            foreach (Move move in MoveGenerator.GeneratePseudoMoves(board, board.sideToMove))
+            // Schritt 1: Fülle unseren wiederverwendbaren "Sammelbehälter".
+            reusableMoveList.Clear();
+            MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, reusableMoveList);
+
+            // Schritt 2 (Die Lösung): Erstelle eine LOKALE KOPIE für die Iteration.
+            // ToArray() ist hier sehr effizient. Diese Kopie wird von den rekursiven
+            // Aufrufen NICHT verändert.
+            var movesToIterate = reusableMoveList.ToArray();
+
+            // Schritt 3: Iteriere über die sichere, lokale Kopie.
+            foreach (Move move in movesToIterate)
             {
                 if (!board.MakeMove(move, out Undo undo))
+                {
                     continue;
+                }
 
-                path.Add(move);               // Pfad verlängern
+                path.Add(move);
 
+                // Der rekursive Aufruf kann jetzt die reusableMoveList nach Belieben
+                // verändern, es stört unsere 'movesToIterate'-Schleife nicht mehr.
                 nodes += Run_Perft(depth - 1, board);
+
                 board.UnmakeMove(move, undo);
 
 #if DEBUG
@@ -47,30 +67,42 @@ namespace uncy.model.Tools
                         $"FEN before       : {fenBefore}\n" +
                         $"FEN after        : {board.ToFen()}\n\n" +
                         $"Zobrist before   : 0x{zobristBefore:X16}\n" +
-                        $"Zobrist after    : 0x{board.currentZobristKey:X16}");
+                        $"Zobrist after    : {board.currentZobristKey:X16}");
                 }
 #endif
-                path.RemoveAt(path.Count - 1);   
+                path.RemoveAt(path.Count - 1);
             }
             return nodes;
         }
 
-
         public static void PerftDivide(int depth, Board board)
         {
+            Console.WriteLine($"\n--- Perft Divide for Depth {depth} ---");
             ulong total = 0;
-            foreach (Move m in MoveGenerator.GeneratePseudoMoves(board, board.sideToMove))
-            {
-                if (!board.MakeMove(m, out Undo undo)) continue;
 
-                ulong sub = Run_Perft(depth - 1, board);
+            // Die gleiche Logik hier anwenden:
+            reusableMoveList.Clear();
+            MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, reusableMoveList);
+
+            // Sortiere die Züge für eine konsistente Ausgabe. Hier ist ToList() gut,
+            // da OrderBy() sowieso eine neue Sequenz erzeugt.
+            var sortedMoves = reusableMoveList.OrderBy(m => m.ToString()).ToList();
+
+            foreach (Move m in sortedMoves)
+            {
+                if (!board.MakeMove(m, out Undo undo))
+                {
+                    continue;
+                }
+
+                ulong subNodes = Run_Perft(depth - 1, board);
 
                 board.UnmakeMove(m, undo);
 
-                Console.WriteLine($"{m} : {sub}");
-                total += sub;
+                Console.WriteLine($"{m}: {subNodes}");
+                total += subNodes;
             }
-            Console.WriteLine($"Total {depth}: {total}");
+            Console.WriteLine($"\nTotal nodes for depth {depth}: {total}");
         }
     }
 }
