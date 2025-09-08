@@ -73,7 +73,7 @@ namespace uncy.model.search
             {
                 if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                     continue;
-                
+
                 int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maximizingSide);
 
                 board.UnmakeMove(m.Value, undo);
@@ -122,7 +122,26 @@ namespace uncy.model.search
             }
 
             MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
-            Move? m;
+            Move? m;    
+            
+            if (moveSorter.HasNoMoreMoves())
+            {
+               if (board.IsKingInCheck(board.sideToMove))
+                {
+                    if (board.sideToMove)
+                    {
+                        return int.MinValue + depth;
+                    }
+                    else
+                    {
+                        return int.MaxValue - depth;
+                    }
+                }
+                else
+                {
+                    return 0;
+                }
+            }
 
             // Needed to determine if flag for score is UpperBound
             int originalAlpha = alpha;

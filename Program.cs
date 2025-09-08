@@ -29,10 +29,11 @@ class Program
         Fen debugFenTwo = new Fen("r1q1r1k1/1p2bppp/p2p1n2/2pP4/P1b1P3/2N1B3/1P2NPPP/R2QR1K1 w - - 3 16");
         Fen maxSizeFen = new Fen("K29/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/29k w - - 0 1");
         Fen closedPositionWithBishops = new Fen("5b2/3k4/1p1p1p1p/pPpPpPpP/P1P1P1P1/8/3BK3/8 w - - 0 1");
+        Fen mateToFind = new Fen("r2r2k1/pp3ppp/2p2b2/5q2/4RB2/1P3PP1/P4P1P/3QR1K1 w - - 0 1");
 
-        Board board = new Board(fen);
+        Board board = new Board(mateToFind);
 
-        StartPerftDebug(board, 5);
+        //StartPerftDebug(board, 5);
 
         //Stopwatch stopwatch = Stopwatch.StartNew();
         //for (int i = 0; i < 4_000_000; i++)
@@ -43,7 +44,7 @@ class Program
         //Console.WriteLine(stopwatch.ToString());
 
 
-        //StartSearch(board, 6);
+        StartSearch(board, 7);
 
         //StartGrpcServer();
 
