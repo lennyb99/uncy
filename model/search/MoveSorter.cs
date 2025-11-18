@@ -75,6 +75,11 @@ namespace uncy.model.search
 
         }
 
+        public bool HasNoMoreMoves()
+        {
+            return (moves.Count == 0);
+        }
+
         private void Swap(int i, int j)
         {
             (moves[i], moves[j]) = (moves[j], moves[i]);

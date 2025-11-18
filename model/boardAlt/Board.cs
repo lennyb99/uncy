@@ -447,6 +447,23 @@ namespace uncy.model.boardAlt
             return true;
         }
 
+        public bool IsKingInCheck(bool color)
+        {
+            (int, int) kingPosition;
+            if (color == true)
+            {
+                kingPosition = GetWhiteKingPosition();
+            }
+            else
+            {
+                kingPosition = GetBlackKingPosition();
+            }
+
+            if (IsSquareAttackedByColor(!color, kingPosition.Item1, kingPosition.Item2)) return true;
+
+            return false;
+        }
+
         private bool IsCastlingLegal(Move move)
         {
             (byte, byte)[] squaresToCheck = GetSquaresBetweenTwoCoords(move.fromSquare, move.toSquare);

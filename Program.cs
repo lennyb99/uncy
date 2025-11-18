@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Threading.Tasks;
@@ -27,12 +27,13 @@ class Program
         Fen debugFenTwo = new Fen("rnbqkbnr/p1pppppp/1p6/8/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
         Fen maxSizeFen = new Fen("K29/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/30/29k w - - 0 1");
         Fen closedPositionWithBishops = new Fen("5b2/3k4/1p1p1p1p/pPpPpPpP/P1P1P1P1/8/3BK3/8 w - - 0 1");
+        Fen mateToFind = new Fen("r2r2k1/pp3ppp/2p2b2/5q2/4RB2/1P3PP1/P4P1P/3QR1K1 w - - 0 1");
 
         Board board = new Board(tempFen);
         //board.PrintBoardToConsole();
 
         //Console.WriteLine(board.ToFen());
-        StartPerftDebug(board,4);
+        StartPerftDebug(board, 4);
 
         //Stopwatch stopwatch = Stopwatch.StartNew();
         //for (int i = 0; i < 4_000_000; i++)
