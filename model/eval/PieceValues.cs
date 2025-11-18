@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using uncy.model.boardAlt;
 
 namespace uncy.model.eval
 {
@@ -23,9 +24,9 @@ namespace uncy.model.eval
         }
 
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-        public static int GetValue(char piece)
+        public static int GetValue(byte piece)
         {
-            return mvv_lva_values[piece];
+            return mvv_lva_values[Piece.GiveCharIdentifier(piece)];
         }
     }
 }

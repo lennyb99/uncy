@@ -1,5 +1,6 @@
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
+using uncy.model.boardAlt;
 using Uncy.Model.Api;
 
 namespace Uncy.Model.Api
@@ -84,8 +85,9 @@ namespace Uncy.Model.Api
                 Console.WriteLine($"Calling engine interface with coordinates: origin[{origin[0]},{origin[1]}] -> target[{target[0]},{target[1]}] with promotion: '{promotionPiece}'");
 
                 // Call the engine interface method directly with FEN string and promotion piece
-                string resultingFen = EngineInterface.IsMoveLegal(request.Fen, origin, target, promotionPiece);
-
+                string resultingFen = EngineInterface.IsMoveLegal(request.Fen, origin, target, Piece.GivePieceFromChar(promotionPiece));
+                
+                
                 Console.WriteLine($"Engine returned FEN: '{resultingFen}'");
 
                 // Check if the move was legal (assuming non-empty result means legal)

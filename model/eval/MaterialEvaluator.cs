@@ -18,16 +18,13 @@ namespace uncy.model.eval
         {
             int score = 0;
 
-            for(int i = 0; i < board.dimensionsOfBoard.Item1; i++)
+            for(int i = 0; i < board.boardSize; i++)
             {
-                for(int j = 0;  j < board.dimensionsOfBoard.Item2; j++) {
-                    
-                    char piece = board.board[i, j];
-                    if (piece == 'e' || piece == 'x') continue;
+                byte piece = board.board[i];
+                if (piece == Piece.Empty || piece == Piece.Inactive) continue;
 
-                    int val = GetPieceScore(piece);
-                    score += val;
-                }
+                int val = GetPieceScore(piece);
+                score += val;
             }
             return score;
         }
@@ -45,7 +42,7 @@ namespace uncy.model.eval
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int GetPieceScore(char p) => pieceTable[p];
+        private static int GetPieceScore(byte p) => pieceTable[Piece.GiveCharIdentifier(p)];
         
 
     }

@@ -129,43 +129,84 @@ namespace uncy.model.boardAlt
          *                          Q = white Queen     q = black Queen
          *                          K = white King      k = black King
          */
-        public static char GetSquareOccupationInformation(string str, int file, int rank, int rankDimension)
+        public static void GetSquareOccupationInformation(byte[] board, string str, int rankDimension)
         {
-            str = str.Split("/")[Math.Abs(rank - (rankDimension - 1))];
-            str += "/";
+            string[] stringArray = str.Split('/');
+            Array.Reverse(stringArray);
+            str = string.Join("/", stringArray);
 
-            int count = file;
+            Console.WriteLine($"Board size is: {board.Length}");
 
-            while (count > 0)
+            int boardIndex = 0;
+            for(int i = 0; i < str.Length; i++)
             {
-                if (char.IsLetter(str[0]))
+                if (str[i] == '/') continue;
+                if (char.IsLetter((char)str[i]))
                 {
-                    str = str.Substring(1);
-                    count--;
+                    board[boardIndex] = IdentifyOccupation(str[i]);
+                    boardIndex++;
                 }
-                else if (char.IsDigit(str[0]))
+                else if (char.IsDigit(str[i]))
                 {
-                    count -= IdentifyDigitGroup(str);
-                    if (count < 0)
+                    for (int j = (int)char.GetNumericValue(str[i]); j > 0; j--)
                     {
-                        return 'e';
+                        board[boardIndex] = 0;
+                        boardIndex++;
                     }
-                    while (char.IsDigit(str[0]))
-                    {
-                        str = str.Substring(1);
-                    }
-
+                }
+                else
+                {
+                    throw new ArgumentException($"Invalid char has been found in the FEN: {str[i]}");
                 }
             }
-            if (char.IsDigit(str[0]))
+        }
+
+        private static byte IdentifyOccupation(char c)
+        {
+            byte p = 0;
+
+            switch (char.ToLower(c))
             {
-                return 'e';
+                case 'p':
+                    p += Piece.Pawn;
+                    break;
+                case 'n':
+                    p += Piece.Knight;
+                    break;
+                case 'b':
+                    p += Piece.Bishop;
+                    break;
+                case 'r':
+                    p += Piece.Rook;
+                    break;
+                case 'q':
+                    p += Piece.Queen;
+                    break;
+                case 'k':
+                    p += Piece.King;
+                    break;
+                case 'x':
+                    p += Piece.Inactive;
+                    return p;
+                case 'e':
+                    p += Piece.Empty;
+                    return p;
+                default:
+                    throw new ArgumentException($"Invalid char has been found in the FEN: {c}");
+            }
+
+            if (char.IsUpper(c))
+            {
+                p += Piece.White;
             }
             else
             {
-                return str[0];
+                p += Piece.Black;
             }
+
+            return p;
         }
+
 
 
         public static bool GetIfWhiteToMove(string str)

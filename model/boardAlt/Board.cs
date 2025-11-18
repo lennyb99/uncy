@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Diagnostics.Metrics;
-using System.Drawing.Text;
-using System.Linq;
+﻿using System.Diagnostics.Eventing.Reader;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using uncy.board;
 
 namespace uncy.model.boardAlt
@@ -14,9 +8,9 @@ namespace uncy.model.boardAlt
     public class Board
     {
         // FEN information 
-        public char[,]? board = null;
+        public byte[]? board = null; // a1 = board[0]
         public bool sideToMove; // bool true = white, false = black
-        public (int, int) enPassantTargetSquare = (-1, -1); // Should be set to (-1,-1) if no en Passant is available
+        public int enPassantTargetSquare = -1; // Should be set to -1 if no en Passant is available
         public byte halfMoveClock = 0;
         public int fullMoveCount = 1;
 
@@ -32,11 +26,17 @@ namespace uncy.model.boardAlt
 
         // (fileCount, rankCount)
         public (int, int) dimensionsOfBoard = (0, 0);
+        public int boardSize = 0;
 
-        private (int, int) shortCastleWhiteRookPos = (-1, -1);
-        private (int, int) longCastleWhiteRookPos = (-1, -1);
-        private (int, int) shortCastleBlackRookPos = (-1, -1);
-        private (int, int) longCastleBlackRookPos = (-1, -1);
+        private int shortCastleWhiteRookPos = -1;
+        private int longCastleWhiteRookPos = -1;
+        private int shortCastleBlackRookPos = -1;
+        private int longCastleBlackRookPos = -1;
+
+
+        // Piece Lists
+        int whiteKingPos;
+        int blackKingPos;
 
         
 
@@ -61,32 +61,27 @@ namespace uncy.model.boardAlt
 
         private void InitializeBoard(int fileSize, int rankSize, Fen fen)
         {
-            board = new char[fileSize, rankSize];
+            boardSize = fileSize * rankSize;
+            board = new byte[boardSize];
 
             BoardInitializer.SetInformationOfSquaresFromFen(board, fen, rankSize);
             sideToMove = BoardInitializer.SetSideToMove(fen);
-            enPassantTargetSquare = BoardInitializer.SetEnPassantTargetSquare(fen);
+            enPassantTargetSquare = BoardInitializer.SetEnPassantTargetSquare(fen, dimensionsOfBoard.Item1);
             halfMoveClock = (byte)BoardInitializer.SetHalfMoveClock(fen);
             fullMoveCount = BoardInitializer.SetFullMoveCount(fen);
             BoardInitializer.UpdateCastlingInformation(fen, this);
-
-
-
+            SetupKingPositions();
             SetCastlingRooksAndUpdateCastlingRights();
-
             PrintBoardToConsole();
         }
 
         public ulong CreateZobristKeyFromCurrentBoard()
         {
             ulong zkey = 0;
-            for(int i = 0; i < board.GetLength(0);i++){
-                for(int j = 0; j < board.GetLength(1); j++)
+            for(int i = 0; i < board.Length;i++){
+                if (Piece.IsSquareActive(board[i]) && Piece.GetPieceType(board[i]) != Piece.Empty) 
                 {
-                    if (board[i,j] != 'e' && board[i,j] != 'x')
-                    {
-                        zkey ^= zobristKeys.GetZobristKeyFromTable(i,j,board[i,j]);
-                    }
+                    zkey ^= zobristKeys.GetZobristKeyFromTable(i,board[i]);
                 }
             }
 
@@ -96,7 +91,7 @@ namespace uncy.model.boardAlt
             zkey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
 
 
-            if (enPassantTargetSquare != (-1, -1)) zkey ^= zobristKeys.zobrist_EP[enPassantTargetSquare.Item1];
+            if (enPassantTargetSquare != -1) zkey ^= zobristKeys.zobrist_EP[enPassantTargetSquare % dimensionsOfBoard.Item1];
 
             return zkey;
         }
@@ -113,7 +108,7 @@ namespace uncy.model.boardAlt
             return codedCastlingRights;
         }
 
-        private void PrintBoardToConsole()
+        public void PrintBoardToConsole()
         {
             Console.WriteLine("--------------");
             if (board == null)
@@ -122,14 +117,42 @@ namespace uncy.model.boardAlt
                 return;
             }
             Console.WriteLine("Start printing Board to console.");
-            for (int i = board.GetLength(0) - 1; i >= 0; i--)
+            //for (int rank = dimensionsOfBoard.Item2; rank >= 0; rank--)
+            //{
+            //    for (int file = 0; file < dimensionsOfBoard.Item1; file++)
+            //    {
+            //        int index = rank * dimensionsOfBoard.Item1 + file - 1;
+            //        Console.WriteLine($"i:{index}");
+            //        Console.Write(Piece.GiveCharIdentifier(board[index]));
+            //    }
+            //    Console.WriteLine();
+            //}
+
+
+
+
+            for (int rank = dimensionsOfBoard.Item2-1; rank >= 0; rank--)
             {
-                for (int j = 0; j < board.GetLength(1); j++)
+                Console.Write($"{rank + 1} | ");
+
+                for (int file = 0; file < dimensionsOfBoard.Item1; file++)
                 {
-                    Console.Write(board[j, i].ToString() + " ");
+                    int index = rank * 8 + file;
+
+                    byte piece = board[index];
+
+                    char displayChar = Piece.GiveCharIdentifier(piece);
+
+                    Console.Write($"{displayChar} ");
                 }
-                Console.WriteLine();
+
+                Console.WriteLine("|"); 
             }
+
+
+
+
+
 
             if (sideToMove)
             {
@@ -158,13 +181,13 @@ namespace uncy.model.boardAlt
                 Console.WriteLine("Black king can castle long side.");
             }
 
-            if (enPassantTargetSquare == (-1, -1))
+            if (enPassantTargetSquare == -1)
             {
                 Console.WriteLine("No En passant possible");
             }
             else
             {
-                Console.WriteLine("En passant possible on: " + enPassantTargetSquare);
+                Console.WriteLine("En passant possible on square: " + enPassantTargetSquare);
             }
 
             Console.WriteLine("Halfmoves since last capture or pawn push: " + halfMoveClock);
@@ -196,11 +219,13 @@ namespace uncy.model.boardAlt
             {
                 Console.WriteLine("black");
             }
-            for (int i = board.GetLength(0) - 1; i >= 0; i--)
+            for (int rank = dimensionsOfBoard.Item2; rank >= 0; rank--)
             {
-                for (int j = 0; j < board.GetLength(1); j++)
+                for (int file = 0; file < dimensionsOfBoard.Item1; file++)
                 {
-                    Console.Write(board[j, i].ToString() + " ");
+                    int index = (rank * dimensionsOfBoard.Item1 + file)-1;
+                    Console.WriteLine(index);
+                    Console.Write(Piece.GiveCharIdentifier(board[index]));
                 }
                 Console.WriteLine();
             }
@@ -209,23 +234,27 @@ namespace uncy.model.boardAlt
 
         public string ToFen()
         {
-            if (board is null || board.GetLength(0) != 8 || board.GetLength(1) != 8)
-                throw new InvalidOperationException("Das Brett muss 8×8 Felder besitzen.");
+            if (board == null) throw new InvalidDataException("Tried to print FEN, but Board is null!");
 
             var fen = new StringBuilder();
 
             // 1. Brett-Teil (Reihen 8 → 1, Linien a → h)
-            for (int rank = 7; rank >= 0; rank--)
+            for (int rank = dimensionsOfBoard.Item2-1; rank >= 0; rank--)
             {
                 int emptyCount = 0;
 
-                for (int file = 0; file < 8; file++)
+                for (int file = 0; file < dimensionsOfBoard.Item1; file++)
                 {
-                    char piece = board[file, rank];
+                    char piece = Piece.GiveCharIdentifier(board[GetSquareFromFileAndRank(file, rank)]);
 
-                    if (piece == 'e')                       // leeres Feld
+                    if (piece == Piece.Empty)                       // leeres Feld
                     {
                         emptyCount++;
+                        if(emptyCount >= 8)
+                        {
+                            fen.Append(emptyCount);
+                            emptyCount = 0;
+                        }
                     }
                     else
                     {
@@ -260,14 +289,15 @@ namespace uncy.model.boardAlt
 
             // 4. En-passant-Feld
             fen.Append(' ');
-            if (enPassantTargetSquare == (-1, -1))
+            if (enPassantTargetSquare == -1)
             {
                 fen.Append('-');
             }
             else
             {
-                fen.Append(enPassantTargetSquare.Item1 + ",");      // file
-                fen.Append(enPassantTargetSquare.Item2);      // rank
+                (int, int) coords = GetFileAndRankFromSquare(enPassantTargetSquare);
+                fen.Append(coords.Item1 + ",");      // file
+                fen.Append(coords.Item2);      // rank
             }
 
             // 5. Halbzug-Zähler
@@ -294,13 +324,26 @@ namespace uncy.model.boardAlt
             sideToMove = !sideToMove;
             currentZobristKey ^= zobristKeys.zobrist_side;
 
+            if (Piece.GetPieceType(move.movedPiece) == Piece.King)
+            {
+                if (Piece.GetColor(move.movedPiece) == Piece.White)
+                {
+                    whiteKingPos = move.toSquare;
+                }
+                else
+                {
+                    blackKingPos = move.toSquare;
+                }
+            }
+
             // Legality Checks
-            if (!IsPositionLegalAfterMoveFrom(IsPieceWhite(move.movedPiece), move))
+            if (!IsPositionLegalAfterMoveFrom(Piece.IsColor(move.movedPiece, Piece.White), move))
             {
                 UnmakeMove(move, undo);
                 return false;
             }
 
+            
             //zobristKeys.CheckForCorrectZobristKeys(this, move);
 
             return true;
@@ -317,19 +360,32 @@ namespace uncy.model.boardAlt
             this.halfMoveClock = undo.halfMoveClock;
             this.currentZobristKey = undo.zobristKey;
             this.sideToMove = !sideToMove;
+
+            if (Piece.GetPieceType(move.movedPiece) == Piece.King)
+            {
+                if (Piece.GetColor(move.movedPiece) == Piece.White)
+                {
+                    whiteKingPos = move.fromSquare;
+                }
+                else
+                {
+                    blackKingPos = move.fromSquare;
+                }
+            }
         }
 
         private void ApplyPieceMove(Move move)
         {
             // Set current square empty
-            board[move.fromFile, move.fromRank] = 'e';
-            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.fromFile, move.fromRank, move.movedPiece);
-            if(enPassantTargetSquare != (-1,-1)) currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare.Item1];
+            board[move.fromSquare] = Piece.Empty;
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.fromSquare, move.movedPiece);
+            
+            if(enPassantTargetSquare != -1) currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare % dimensionsOfBoard.Item1];
 
             // Update destination square
-            board[move.toFile, move.toRank] = move.movedPiece;
-            if (move.capturedPiece != 'e' && !move.enPassantCaptureFlag) currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.capturedPiece);
-            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.movedPiece);
+            board[move.toSquare] = move.movedPiece;
+            if (move.capturedPiece != Piece.Empty && !move.enPassantCaptureFlag) currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toSquare, move.capturedPiece);
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toSquare, move.movedPiece);
 
             // Check for Castling move
             if (move.castlingMoveFlag)
@@ -344,19 +400,19 @@ namespace uncy.model.boardAlt
             }
 
             // Check for promotion
-            if (move.promotionPiece != 'e')
+            if (move.promotionPiece != Piece.Empty)
             {
-                board[move.toFile, move.toRank] = move.promotionPiece;
-                currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.movedPiece);
-                currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank, move.promotionPiece);
+                board[move.toSquare] = move.promotionPiece;
+                currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toSquare, move.movedPiece);
+                currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toSquare, move.promotionPiece);
             }
         }
 
         private void RevertPieceMove(Move move, Undo undo)
         {
-            board[move.fromFile, move.fromRank] = move.movedPiece;
+            board[move.fromSquare] = move.movedPiece;
 
-            board[move.toFile, move.toRank] = move.capturedPiece;
+            board[move.toSquare] = move.capturedPiece;
 
             if (move.castlingMoveFlag)
             {
@@ -374,17 +430,17 @@ namespace uncy.model.boardAlt
          */
         private bool IsPositionLegalAfterMoveFrom(bool color, Move move)
         {
-            (int, int) kingPosition;
+            int kingPosition;
             if (color == true)
             {
-                kingPosition = GetWhiteKingPosition();
+                kingPosition = whiteKingPos;
             }
             else
             {
-                kingPosition = GetBlackKingPosition();
+                kingPosition = blackKingPos;
             }
 
-            if (IsSquareAttackedByColor(!color, kingPosition.Item1, kingPosition.Item2)) return false;
+            if (IsSquareAttackedByColor(!color, kingPosition)) return false;
 
             if (move.castlingMoveFlag && !IsCastlingLegal(move)) return false;
 
@@ -393,18 +449,26 @@ namespace uncy.model.boardAlt
 
         private bool IsCastlingLegal(Move move)
         {
-            (byte, byte)[] squaresToCheck = GetSquaresBetweenTwoCoords(move.fromFile, move.fromRank, move.toFile, move.toRank);
+            (byte, byte)[] squaresToCheck = GetSquaresBetweenTwoCoords(move.fromSquare, move.toSquare);
 
             foreach (var square in squaresToCheck)
             {
-                if (IsSquareAttackedByColor(!IsPieceWhite(move.movedPiece), square.Item1, square.Item2)) return false;
+                int squareIndex = GetSquareFromFileAndRank(square.Item1, square.Item2);
+                if (IsSquareAttackedByColor(!Piece.IsColor(move.movedPiece, Piece.White), squareIndex)) return false;
             }
-
             return true;
         }
 
-        public (byte, byte)[] GetSquaresBetweenTwoCoords(int xOri, int yOri, int xDest, int yDest)
+        public (byte, byte)[] GetSquaresBetweenTwoCoords(int fromSquare, int toSquare)
         {
+            (int, int) ori = GetFileAndRankFromSquare(fromSquare);
+            (int, int) dest = GetFileAndRankFromSquare(toSquare);
+
+            int xOri = ori.Item1;
+            int yOri = ori.Item2;
+            int xDest = dest.Item1;
+            int yDest = dest.Item2;
+
             if (xOri != xDest && yOri != yDest)
                 throw new ArgumentException("Only horizontal or vertical directions");
 
@@ -430,37 +494,37 @@ namespace uncy.model.boardAlt
         {
             int rookOffset;
             currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
-            if (move.toFile - move.fromFile > 0) // Get information whether its a king or queenside castle move, to know where to put the rook
+            if ((move.toSquare % dimensionsOfBoard.Item1) - (move.fromSquare % dimensionsOfBoard.Item1) > 0) // Get information whether its a king or queenside castle move, to know where to put the rook
             {
                 // Short castle
                 rookOffset = -1;
-                if (IsPieceWhite(move.movedPiece))
+                if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
                     whiteKingShortCastle = false;
                     whiteKingLongCastle = false;
-                    MovePieceWithoutMoveContext(shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                    MovePieceWithoutMoveContext(shortCastleWhiteRookPos, move.toSquare+rookOffset);
                 }
                 else
                 {
                     blackKingShortCastle = false;
                     blackKingLongCastle = false;
-                    MovePieceWithoutMoveContext(shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                    MovePieceWithoutMoveContext(shortCastleBlackRookPos, move.toSquare+rookOffset);
                 }
             }
             else  // long castle
             {
                 rookOffset = 1;
-                if (IsPieceWhite(move.movedPiece))
+                if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
                     whiteKingShortCastle = false;
                     whiteKingLongCastle = false;
-                    MovePieceWithoutMoveContext(longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                    MovePieceWithoutMoveContext(longCastleWhiteRookPos, move.toSquare+rookOffset);
                 }
                 else
                 {
                     blackKingShortCastle = false;
                     blackKingLongCastle = false;
-                    MovePieceWithoutMoveContext(longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2, move.toFile + rookOffset, move.toRank);
+                    MovePieceWithoutMoveContext(longCastleBlackRookPos, move.toSquare+rookOffset);
                 }
             }
             currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
@@ -471,7 +535,7 @@ namespace uncy.model.boardAlt
         private void ApplyEnPassantMove(Move move)
         {
             int offset;
-            if (IsPieceWhite(move.movedPiece))
+            if (Piece.IsColor(move.movedPiece, Piece.White))
             {
                 offset = -1;
             }
@@ -479,34 +543,34 @@ namespace uncy.model.boardAlt
             {
                 offset = 1;
             }
-            board[move.toFile, move.toRank + offset] = 'e';
-            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toFile, move.toRank + offset, move.capturedPiece);
+            board[move.toSquare + offset*dimensionsOfBoard.Item1] = Piece.Empty;
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toSquare + offset, move.capturedPiece);
         }
 
         private void RevertCastlingMove(Move move, Undo undo)
         {
             if (WasCastlingMoveShortCastle(move))
             {
-                if (IsPieceWhite(move.movedPiece))
+                if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
 
-                    MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleWhiteRookPos.Item1, shortCastleWhiteRookPos.Item2);
+                    MovePieceWithoutMoveContext(move.toSquare -1, shortCastleWhiteRookPos);
                 }
                 else
                 {
-                    MovePieceWithoutMoveContext(move.toFile - 1, move.toRank, shortCastleBlackRookPos.Item1, shortCastleBlackRookPos.Item2);
+                    MovePieceWithoutMoveContext(move.toSquare -1, shortCastleBlackRookPos);
                 }
             }
             else
             {
-                if (IsPieceWhite(move.movedPiece))
+                if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
 
-                    MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleWhiteRookPos.Item1, longCastleWhiteRookPos.Item2);
+                    MovePieceWithoutMoveContext(move.toSquare +1, longCastleWhiteRookPos);
                 }
                 else
                 {
-                    MovePieceWithoutMoveContext(move.toFile + 1, move.toRank, longCastleBlackRookPos.Item1, longCastleBlackRookPos.Item2);
+                    MovePieceWithoutMoveContext(move.toSquare + 1, longCastleBlackRookPos);
                 }
             }
         }
@@ -516,22 +580,22 @@ namespace uncy.model.boardAlt
          */
         private bool WasCastlingMoveShortCastle(Move move)
         {
-            if (move.fromFile - move.toFile > 0) return false;
+            if ((move.fromSquare % dimensionsOfBoard.Item1) - (move.toSquare % dimensionsOfBoard.Item1) > 0) return false;
             return true;
         }
 
         private void RevertEnPassantMove(Move move)
         {
-            if (IsPieceWhite(move.movedPiece))
+            if (Piece.IsColor(move.movedPiece, Piece.White))
             {
-                board[move.toFile, move.toRank - 1] = 'p';
+                board[move.toSquare - (dimensionsOfBoard.Item1)] = Piece.Pawn+Piece.Black;
             }
             else
             {
-                board[move.toFile, move.toRank + 1] = 'P';
+                board[move.toSquare + (dimensionsOfBoard.Item1)] = Piece.Pawn+Piece.White;
             }
 
-            board[move.toFile, move.toRank] = 'e';
+            board[move.toSquare] = Piece.Empty;
         }
 
         /*
@@ -542,49 +606,49 @@ namespace uncy.model.boardAlt
          */
         private void UpdateCastleRights(Move move)
         {
-            if (char.ToLower(move.movedPiece) != 'k' && char.ToLower(move.movedPiece) != 'r') return;
-            (int, int) pos;
+            if (Piece.GetPieceType(move.movedPiece) != Piece.King && Piece.GetPieceType(move.movedPiece) != Piece.Rook) return;
+            int pos;
             currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
             switch (move.movedPiece)
             {
-                case 'K':
+                case Piece.King + Piece.White: // white King 
                     if (!move.castlingMoveFlag)
                     {
                         whiteKingShortCastle = false;
                         whiteKingLongCastle = false;
                     }
                     break;
-                case 'k':
+                case Piece.King + Piece.Black: // black King
                     if (!move.castlingMoveFlag)
                     {
                         blackKingShortCastle = false;
                         blackKingLongCastle = false;
                     }
                     break;
-                case 'R':
+                case Piece.White + Piece.Rook: // white Rook
                     pos = shortCastleWhiteRookPos;
-                    if (move.fromFile == pos.Item1 && move.fromRank == pos.Item2)
+                    if (move.fromSquare == pos)
                     {
                         whiteKingShortCastle = false;
                         break;
                     }
 
                     pos = longCastleWhiteRookPos;
-                    if (move.fromFile == pos.Item1 && move.fromRank == pos.Item2)
+                    if (move.fromSquare == pos)
                     {
                         whiteKingLongCastle = false;
                     }
                     break;
-                case 'r':
+                case Piece.Black + Piece.Rook: // black Rook
                     pos = shortCastleBlackRookPos;
-                    if (move.fromFile == pos.Item1 && move.fromRank == pos.Item2)
+                    if (move.fromSquare == pos)
                     {
                         blackKingShortCastle = false;
                         break;
                     }
 
                     pos = longCastleBlackRookPos;
-                    if (move.fromFile == pos.Item1 && move.fromRank == pos.Item2)
+                    if (move.fromSquare == pos)
                     {
                         blackKingLongCastle = false;
                     }
@@ -600,19 +664,19 @@ namespace uncy.model.boardAlt
         {
             if (move.doubleSquarePushFlag)
             {
-                if (IsPieceWhite(move.movedPiece))
+                if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
-                    enPassantTargetSquare = (move.toFile, move.toRank - 1);
+                    enPassantTargetSquare = (move.toSquare - dimensionsOfBoard.Item1);
                 }
                 else
                 {
-                    enPassantTargetSquare = (move.toFile, move.toRank + 1);
+                    enPassantTargetSquare = (move.toSquare + dimensionsOfBoard.Item1);
                 }
-                currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare.Item1]; // Update key for new EP target square
+                currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare % dimensionsOfBoard.Item1]; // Update key for new EP target square
             }
             else
             {
-                enPassantTargetSquare = (-1, -1);
+                enPassantTargetSquare = -1;
             }
         }
 
@@ -631,14 +695,14 @@ namespace uncy.model.boardAlt
         /*
        * helper util method to reduce code redundancy.
        */
-        private void MovePieceWithoutMoveContext(int fromFile, int fromRank, int toFile, int toRank)
+        private void MovePieceWithoutMoveContext(int fromSquare, int toSquare)
         {
-            char piece = board[fromFile, fromRank];
-            board[fromFile, fromRank] = 'e';
-            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(fromFile, fromRank, piece);
+            byte piece = board[fromSquare];
+            board[fromSquare] = Piece.Empty;
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(fromSquare, piece);
 
-            board[toFile, toRank] = piece;
-            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(toFile, toRank, piece);
+            board[toSquare] = piece;
+            currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(toSquare, piece);
         }
 
 
@@ -646,101 +710,151 @@ namespace uncy.model.boardAlt
          * This method is used to calculate whether a pawn has reached his promotion square
          * 
          */
-        public bool IsSquareAtEndOfBoardForWhite(int file, int rank)
+        public bool IsSquareAtEndOfBoardForWhite(int square)
         {
-            if (!(rank < 32 && file < 32 && file >= 0 && rank >= 0)) // Point inside of board bounds
-            {
-                Console.WriteLine("Point outside of board bounds.");
-                return false;
-            }
-            if (rank == dimensionsOfBoard.Item2 - 1 || board[file, rank + 1] == 'x')
+            // Taken out since no square from outside of the bounds should be accessed anyway
+
+            //if (!(rank < 32 && file < 32 && file >= 0 && rank >= 0)) // Point inside of board bounds
+            //{
+            //    Console.WriteLine("Point outside of board bounds.");
+            //    return false;
+            //}
+
+            if (square >= board.Length - dimensionsOfBoard.Item1 || board[square + dimensionsOfBoard.Item1] == Piece.Inactive)
             {
                 return true;
             }
             return false;
         }
 
-        public bool IsSquareAtEndOfBoardForBlack(int file, int rank)
+        public bool IsSquareAtEndOfBoardForBlack(int square)
         {
-            if (!(rank < 32 && file < 32 && file >= 0 && rank >= 0)) // Point inside of board bounds
-            {
-                Console.WriteLine("Point outside of board bounds.");
-                return false;
-            }
-            if (rank == 0 || board[file, rank - 1] == 'x')
+            //if (!(rank < 32 && file < 32 && file >= 0 && rank >= 0)) // Point inside of board bounds
+            //{
+            //    Console.WriteLine("Point outside of board bounds.");
+            //    return false;
+            //}
+
+            if (square < dimensionsOfBoard.Item1 || board[square - dimensionsOfBoard.Item1] == Piece.Inactive)
             {
                 return true;
             }
             return false;
         }
 
-        public bool IsSquareOccuptiedByPiece(int file, int rank)
+        public bool IsSquareOccupiedByPiece(int square)
         {
-            if (board != null && file >= 0 && rank >= 0 && file < dimensionsOfBoard.Item1 && rank < dimensionsOfBoard.Item2)
+            //if (file >= 0 && rank >= 0 && file < dimensionsOfBoard.Item1 && rank < dimensionsOfBoard.Item2)
+            //{
+            if (board[square] == Piece.Empty || board[square] == Piece.Inactive)
             {
-                if (board[file, rank] == 'e' || board[file, rank] == 'x')
-                {
-                    return false;
-                }
-                else
-                {
-                    return true;
-                }
+                return false;
             }
             else
             {
-                return false;
+                return true;
             }
+            //}
+            //else
+            //{
+            //    return false;
+            //}
         }
 
         /*
-         * This method checks if any given square (file, rank) on the the board is attacked by a piece of a player.
+         * This method checks if any given square (index) on the the board is attacked by a piece of a player.
          * if parameter 'white' is true, it checks whether the given square is attacked by white pieces. if false, by black pieces. 
          * Returns true as soon as a piece is found that attacks the square, skipping any other possible pieces.
          */
-        public bool IsSquareAttackedByColor(bool white, int file, int rank)
+        public bool IsSquareAttackedByColor(bool white, int square)
         {
+            int fileSize = dimensionsOfBoard.Item1;
 
-            if (board == null) return false;
+            List<int> dSquareKnight = new List<int>();
+            switch (square % fileSize) // Only select those squares that won't result in an illegal overlap to the next rank
+            {
+                case 0:
+                    dSquareKnight.AddRange(new int[] { 2 * fileSize + 1, fileSize + 2, -fileSize + 2, -2 * fileSize + 1 });
+                    break;
+                case 1:
+                    dSquareKnight.AddRange(new int[] { 2 * fileSize + 1, fileSize + 2, -fileSize + 2, -2 * fileSize + 1, -2 * fileSize - 1, 2 * fileSize - 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1 });
+                    break;
+                case var n when n == fileSize - 2:
+                    dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1, 2 * fileSize + 1, -2 * fileSize + 1 });
+                    break;
+                default:
+                    dSquareKnight.AddRange(new int[] {2*fileSize + 1, // NNE
+                                    fileSize + 2, // NEE
+                                    -fileSize + 2, // SEE
+                                    -2 * fileSize + 1, // SSE
+                                    -2 * fileSize - 1, // SSW
+                                    - fileSize - 2, // SWW
+                                    fileSize - 2, // NWW
+                                    2*fileSize -1}); // NNW
+                    break;
+            }
 
-            int[] dFileKnight = { 1, 2, 2, 1, -1, -2, -2, -1 }; // Knight Moves
-            int[] dRankKnight = { 2, 1, -1, -2, -2, -1, 1, 2 };
+            
+            
+            List<int> dSquaresKing = new List<int>();
+            switch (square % fileSize)
+            {
+                case 0:
+                    dSquaresKing.AddRange(new int[] { fileSize, 1, -fileSize, fileSize + 1, -fileSize + 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquaresKing.AddRange(new int[] { fileSize, -fileSize, -fileSize - 1, fileSize - 1, -1 });
+                    break;
+                default:
+                    dSquaresKing.AddRange(new int[] { fileSize, 1, -fileSize, -1, fileSize + 1, -fileSize + 1, -fileSize - 1, fileSize - 1 });
+                    break;
+            }
 
-            int[] dFileKing = { 0, 1, 1, 1, 0, -1, -1, -1 }; // King Moves
-            int[] dRankKing = { 1, 1, 0, -1, -1, -1, 0, 1 };
 
-            char[] pieces = { 'K', 'N', 'P', 'Q', 'R', 'B' };
-            if (!white)
+
+            byte[] pieces =
+            {
+                Piece.King, Piece.Knight, Piece.Pawn, Piece.Queen, Piece.Rook, Piece.Bishop
+            };
+
+            if (white)
             {
                 for (int i = 0; i < pieces.Length; i++)
                 {
-                    pieces[i] = char.ToLower(pieces[i]);
+                    pieces[i] += Piece.White;
+                }
+            }else
+            {
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    pieces[i] += Piece.Black;
                 }
             }
 
+
             // King check
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < dSquaresKing.Count; i++)
             {
-                int nextFile = file + dFileKing[i];
-                int nextRank = rank + dRankKing[i];
+                int nextSquare = square + dSquaresKing[i];
 
-                if (nextFile < 0 || nextFile >= dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= dimensionsOfBoard.Item2) continue;
+                if (nextSquare >= boardSize || nextSquare < 0) continue;
 
-                if (board[nextFile, nextRank] == pieces[0])
+                if (board[nextSquare] == pieces[0])
                 {
                     return true;
                 }
             }
 
             // Knight check
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < dSquareKnight.Count; i++)
             {
-                int nextFile = file + dFileKnight[i];
-                int nextRank = rank + dRankKnight[i];
-
-                if (nextFile < 0 || nextFile >= dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= dimensionsOfBoard.Item2) continue;
-
-                if (board[nextFile, nextRank] == pieces[1])
+                int nextSquare = square + dSquareKnight[i];
+                
+                if (nextSquare >= boardSize || nextSquare < 0) continue;
+                if (board[nextSquare] == pieces[1])
                 {
                     return true;
                 }
@@ -749,16 +863,27 @@ namespace uncy.model.boardAlt
             // Pawn check
             if (white)
             {
-                int[] dFilePawn = { 1, -1 };
-                int[] dRankPawn = { -1, -1 };
-
-                for (int i = 0; i < 2; i++)
+                List<int> dSquarePawn = new List<int>();
+                if (square % fileSize == 0)
                 {
-                    int nextFile = file + dFilePawn[i];
-                    int nextRank = rank + dRankPawn[i];
-                    if (nextFile < 0 || nextFile >= dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= dimensionsOfBoard.Item2) continue;
+                    dSquarePawn.Add(-fileSize+1);
+                }else if(square % fileSize == 7)
+                {
+                    dSquarePawn.Add(-fileSize - 1);
+                }
+                else
+                {
+                    dSquarePawn.Add(-fileSize - 1);
+                    dSquarePawn.Add(-fileSize + 1);
+                }
 
-                    if (board[nextFile, nextRank] == 'P')
+                for (int i = 0; i < dSquarePawn.Count; i++)
+                {
+                    int nextSquare = square + dSquarePawn[i];
+                    
+                    if (nextSquare >= boardSize || nextSquare < 0) continue;
+
+                    if (board[nextSquare] == pieces[2])
                     {
                         return true;
                     }
@@ -766,16 +891,26 @@ namespace uncy.model.boardAlt
             }
             else
             {
-                int[] dFilePawn = { -1, 1 };
-                int[] dRankPawn = { 1, 1 };
-
-                for (int i = 0; i < 2; i++)
+                List<int> dSquarePawn = new List<int>();
+                if (square % fileSize == 0)
                 {
-                    int nextFile = file + dFilePawn[i];
-                    int nextRank = rank + dRankPawn[i];
-                    if (nextFile < 0 || nextFile >= dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= dimensionsOfBoard.Item2) continue;
+                    dSquarePawn.Add(fileSize + 1);
+                }
+                else if (square % fileSize == 7)
+                {
+                    dSquarePawn.Add(fileSize - 1);
+                }
+                else
+                {
+                    dSquarePawn.Add(fileSize - 1);
+                    dSquarePawn.Add(fileSize + 1);
+                }
+                for (int i = 0; i < dSquarePawn.Count; i++)
+                {
+                    int nextSquare = square + dSquarePawn[i];
+                    if (nextSquare >= boardSize || nextSquare < 0) continue;
 
-                    if (board[nextFile, nextRank] == 'p')
+                    if (board[nextSquare] == pieces[2])
                     {
                         return true;
                     }
@@ -783,84 +918,135 @@ namespace uncy.model.boardAlt
             }
 
             // Rook & Queen Check
-            int[] dFileRook = { 0, 0, -1, 1 };
-            int[] dRankRook = { -1, 1, 0, 0 };
+            List<int> dSquaresRookQueen = new List<int>();
 
-            for (int i = 0; i < dFileRook.Length; i++)
+            switch (square % fileSize)
+            {
+                case 0:
+                    dSquaresRookQueen.AddRange(new int[] { fileSize, 1, -fileSize });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquaresRookQueen.AddRange(new int[] { fileSize, -fileSize, -1 });
+                    break;
+                default:
+                    dSquaresRookQueen.AddRange(new int[] { fileSize, 1, -fileSize, -1 });
+                    break;
+            }
+
+            for (int i = 0; i < dSquaresRookQueen.Count; i++)
             {
                 for (int step = 1; step < 32; step++) // 32 because of the maximum technical board size
                 {
+                    int nextSquare = square + dSquaresRookQueen[i] * step;
+                    if (nextSquare >= boardSize || nextSquare < 0) break;
 
-                    int nextFile = file + dFileRook[i] * step;
-                    int nextRank = rank + dRankRook[i] * step;
+                    byte targetPiece = board[nextSquare];
+                    int pos = nextSquare % fileSize; // Check if left or right board bounds has been reached
 
-                    if (nextFile < 0 || nextFile >= dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= dimensionsOfBoard.Item2) break;
-                    //Console.WriteLine("Checking square:" + nextFile + "," + nextRank + " --- " + dFileRook[i] + "*" + step +"," +dRankRook[i] + "*" + step);
-                    char targetPiece = board[nextFile, nextRank];
+                    if (targetPiece == Piece.Empty)
+                    {
+                        if ((pos == 0 || pos == 7) && !(step == 0 || (pos == square % fileSize)))
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+                    }
 
-                    if (targetPiece == 'e') continue;
-                    else if (targetPiece == pieces[3] || targetPiece == pieces[4]) return true;
+                    if (targetPiece == pieces[3] || targetPiece == pieces[4]) return true;
                     else break;
                 }
             }
 
             // Bishop & Queen Check
-            int[] dFileBishop = { 1, 1, -1, -1 };
-            int[] dRankBishop = { 1, -1, -1, 1 };
+            List<int> dSquaresBishopQueen = new List<int>();
 
-            for (int i = 0; i < dFileBishop.Length; i++)
+            switch (square % fileSize)
+            {
+                case 0:
+                    dSquaresBishopQueen.AddRange(new int[] { fileSize + 1, -fileSize + 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquaresBishopQueen.AddRange(new int[] { -fileSize - 1, fileSize - 1 });
+                    break;
+                default:
+                    dSquaresBishopQueen.AddRange(new int[] { fileSize + 1, -fileSize + 1, -fileSize - 1, fileSize - 1 });
+                    break;
+            }
+
+
+            for (int i = 0; i < dSquaresBishopQueen.Count; i++)
             {
                 for (int step = 1; step < 32; step++) // 32 because of the maximum technical board size
                 {
 
-                    int nextFile = file + dFileBishop[i] * step;
-                    int nextRank = rank + dRankBishop[i] * step;
+                    int nextSquare = square + dSquaresBishopQueen[i] * step;
 
-                    if (nextFile < 0 || nextFile >= dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= dimensionsOfBoard.Item2) break;
+                    if (nextSquare >= boardSize || nextSquare < 0) break;
 
-                    char targetPiece = board[nextFile, nextRank];
+                    //Console.WriteLine($"homesquare:{square} -> {nextSquare} & pos = {pos}");
 
-                    if (targetPiece == 'e') continue;
-                    else if (targetPiece == pieces[3] || targetPiece == pieces[5]) return true;
-                    else break;
 
+                    byte targetPiece = board[nextSquare];
+                    int pos = nextSquare % fileSize; // Check if left or right board bounds has been reached
+
+
+                    if (targetPiece == Piece.Empty)
+                    {
+                        if ((pos == 0 || pos == 7) && step != 0)
+                        {
+                            break;
+                        }
+                        else
+                        {
+                            continue;
+                        }   
+                    }
+                    if (targetPiece == pieces[3] || targetPiece == pieces[5])
+                    {
+                        return true;
+                    }
+                    break;
                 }
             }
 
             return false;
         }
 
-        public (int, int) GetWhiteKingPosition()
+        private void SetupKingPositions()
         {
-            for (int i = board.GetLength(0) - 1; i >= 0; i--)
-            {
-                for (int j = 0; j < board.GetLength(1); j++)
-                {
-                    if (board[i, j] == 'K')
-                    {
-                        return (i, j);
-                    }
-                }
-            }
-            return (-1, -1);
+            whiteKingPos = GetWhiteKingPosition();
+            blackKingPos = GetBlackKingPosition();
         }
 
-        public (int, int) GetBlackKingPosition()
+        public int GetWhiteKingPosition()
+        {
+            for (int i = board.Length - 1; i >= 0; i--)
+            {
+                if (board[i] == Piece.White+Piece.King)
+                {
+                    Console.WriteLine($"Found white king on square: {i}");
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        public int GetBlackKingPosition()
         {
             for (int i = 0; i < board.GetLength(0); i++)
             {
-                for (int j = 0; j < board.GetLength(1); j++)
+                if (board[i] == Piece.Black+ Piece.King)
                 {
-                    if (board[i, j] == 'k')
-                    {
-                        return (i, j);
-                    }
+                    Console.WriteLine($"Found black king on square: {i}");
+                    return i;
                 }
             }
-            return (-1, -1);
+            return -1;
         }
 
-        static bool IsPieceWhite(char c) => c >= 'A' && c <= 'Z';
 
 
         /*
@@ -874,81 +1060,90 @@ namespace uncy.model.boardAlt
         {
             if (board == null) return;
 
-            (int, int) whiteKingPos = GetWhiteKingPosition();
-            (int, int) blackKingPos = GetBlackKingPosition();
-
-            for (int i = whiteKingPos.Item1; i < dimensionsOfBoard.Item1; i++) // Looking for the short castle white rook
+            for (int i = whiteKingPos+1; i <= whiteKingPos+stepUntilRightBoardBorder(whiteKingPos); i++) // Looking for the short castle white rook
             {
-                if (board[i, whiteKingPos.Item2] == 'R' && whiteKingShortCastle == true)
+                if (Piece.IsPieceAWhiteRook(board[i]) && whiteKingShortCastle == true)
                 {
-                    shortCastleWhiteRookPos = (i, whiteKingPos.Item2);
+                    shortCastleWhiteRookPos = (i);
                 }
-                if (board[i, whiteKingPos.Item2] == 'x')
+                if (!Piece.IsSquareActive(board[i]))
                 {
                     whiteKingShortCastle = false;
                     break;
                 }
             }
-            if (shortCastleWhiteRookPos == (-1, -1))
+            if (shortCastleWhiteRookPos == -1)
             {
                 whiteKingShortCastle = false;
             }
 
 
-            for (int i = whiteKingPos.Item1; i >= 0; i--) // Looking for the long castle white rook
+            for (int i = whiteKingPos-1; i >= whiteKingPos-stepsUntilLeftBoardBorder(whiteKingPos); i--) // Looking for the long castle white rook
             {
-                if (board[i, whiteKingPos.Item2] == 'R' && whiteKingLongCastle == true)
+                if (Piece.IsPieceAWhiteRook(board[i]) && whiteKingLongCastle == true)
                 {
-                    longCastleWhiteRookPos = (i, whiteKingPos.Item2);
+                    longCastleWhiteRookPos = i;
                 }
-                if (board[i, whiteKingPos.Item2] == 'x')
+                if (!Piece.IsSquareActive(board[i]))
                 {
                     whiteKingLongCastle = false;
                     break;
                 }
             }
-            if (longCastleWhiteRookPos == (-1, -1))
+            if (longCastleWhiteRookPos == -1)
             {
                 whiteKingLongCastle = false;
             }
 
 
-            for (int i = blackKingPos.Item1; i < dimensionsOfBoard.Item1; i++) // Looking for the short castle black rook
+            for (int i = blackKingPos+1; i <= blackKingPos+stepUntilRightBoardBorder(blackKingPos); i++) // Looking for the short castle black rook
             {
-                if (board[i, blackKingPos.Item2] == 'r' && blackKingShortCastle == true)
+                if (Piece.IsPieceABlackRook(board[i]) && blackKingShortCastle == true)
                 {
-                    shortCastleBlackRookPos = (i, blackKingPos.Item2);
+                    shortCastleBlackRookPos = (i);
                 }
-                if (board[i, blackKingPos.Item2] == 'x')
+                if (!Piece.IsSquareActive(board[i]))
                 {
                     blackKingShortCastle = false;
                     break;
                 }
             }
-            if (shortCastleBlackRookPos == (-1, -1))
+            if (shortCastleBlackRookPos == -1)
             {
                 blackKingShortCastle = false;
             }
 
 
-            for (int i = blackKingPos.Item1; i >= 0; i--) // Looking for the long castle black rook
+            for (int i = blackKingPos-1; i >= blackKingPos-stepsUntilLeftBoardBorder(blackKingPos); i--) // Looking for the long castle black rook
             {
-                if (board[i, blackKingPos.Item2] == 'r' && blackKingLongCastle == true)
+                if (Piece.IsPieceABlackRook(board[i]) && blackKingLongCastle == true)
                 {
-                    longCastleBlackRookPos = (i, blackKingPos.Item2);
+                    longCastleBlackRookPos = (i);
                 }
-                if (board[i, blackKingPos.Item2] == 'x')
+                if (!Piece.IsSquareActive(board[i]))
                 {
                     blackKingLongCastle = false;
                     break;
                 }
             }
-            if (longCastleBlackRookPos == (-1, -1))
+            if (longCastleBlackRookPos == -1)
             {
                 blackKingLongCastle = false;
             }
         }
 
+        /*
+         * Helper method to give information about how many steps you'd have to take from a square to reach the border
+         */
+        public int stepsUntilLeftBoardBorder(int square)
+        {
+            return square % dimensionsOfBoard.Item1;
+        }
+
+        public int stepUntilRightBoardBorder(int square)
+        {
+            return dimensionsOfBoard.Item1 - (square % dimensionsOfBoard.Item1) - 1;
+        }
 
         public string IsMoveLegal(Move move)
         {
@@ -958,6 +1153,38 @@ namespace uncy.model.boardAlt
                 MakeMove(move, out Undo undo);
             }
             return ToFen();
+        }
+
+        /*
+         * a1 = (file=0, rank=0)
+         */
+        public (int,int) GetFileAndRankFromSquare(int square)
+        {
+            int rank = square / dimensionsOfBoard.Item1;
+            int file = square % dimensionsOfBoard.Item1;
+            return (file, rank);
+        }
+
+        /*
+         * a1 = (file=0, rank=0)
+         */
+        public int GetSquareFromFileAndRank(int file,int rank)
+        {
+            return rank * dimensionsOfBoard.Item1 + file;
+        }
+
+        public string GiveMoveAbbreviation(Move move)
+        {
+            (int, int) fromFileRank = GetFileAndRankFromSquare(move.fromSquare);
+            (int, int) toFileRank = GetFileAndRankFromSquare(move.toSquare);
+
+            char fromFile = (char)('a' + fromFileRank.Item1);
+            int fromRank = fromFileRank.Item2+1;
+
+            char toFile = (char)('a' +  toFileRank.Item1);
+            int toRank = toFileRank.Item2+1;
+
+            return $"{fromFile}{fromRank}{toFile}{toRank}";
         }
     }
 }

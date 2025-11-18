@@ -10,26 +10,22 @@ namespace uncy.model.boardAlt
 {
     public readonly struct Move
     {
-        public readonly byte fromFile, fromRank, toFile, toRank;
-        public readonly char movedPiece, capturedPiece, promotionPiece;
+        public readonly ushort fromSquare, toSquare;
+        public readonly byte movedPiece, capturedPiece, promotionPiece;
         public readonly bool castlingMoveFlag, enPassantCaptureFlag, doubleSquarePushFlag;
 
         public Move(
-            byte fromFile,
-            byte fromRank,
-            byte toFile,
-            byte toRank,
-            char movedPiece,
-            char capturedPiece = 'e',
-            char promotionPiece = 'e',
+            ushort fromSquare,
+            ushort toSquare,
+            byte movedPiece,
+            byte capturedPiece = Piece.Empty,
+            byte promotionPiece = Piece.Empty,
             bool castlingMoveFlag = false,
             bool enPassantCaptureFlag = false,
             bool doubleSquarePushFlag = false)
         {
-            this.fromFile = fromFile;
-            this.fromRank = fromRank;
-            this.toFile = toFile;
-            this.toRank = toRank;
+            this.fromSquare = fromSquare;
+            this.toSquare = toSquare;
             this.movedPiece = movedPiece;
             this.capturedPiece = capturedPiece;
             this.promotionPiece = promotionPiece;
@@ -40,15 +36,15 @@ namespace uncy.model.boardAlt
 
         public bool IsCaptureOrPawnMove()
         {
-            if (capturedPiece != 'e' || char.ToLower(movedPiece) == 'p') return true;
-
-
+            if (capturedPiece != Piece.Empty || Piece.IsPieceAPawn(movedPiece)) return true;
             return false;
         }
 
         public override string ToString()
         {
-            return "(" + movedPiece + ": " + GetFileChar(fromFile) + (fromRank+1) + "->" + GetFileChar(toFile) + (toRank+1) + ")";
+            //return "(" + movedPiece + ": " + GetFileChar(fromFile) + (fromRank+1) + "->" + GetFileChar(toFile) + (toRank+1) + ")";
+
+            return $"({Piece.GiveCharIdentifier(movedPiece)}: Sq({fromSquare}) -> ({toSquare}))";
 
         }
 
@@ -76,125 +72,642 @@ namespace uncy.model.boardAlt
             return 'x';
         }
     }
-        public readonly struct Undo
-        {
-            public readonly bool whiteKingShortCastle, whiteKingLongCastle, blackKingShortCastle, blackKingLongCastle;
-            public readonly (int, int) enPassantTargetSquare;
-            public readonly byte halfMoveClock;
-            public readonly ulong zobristKey;
 
-            public Undo(
-                bool whiteKingShortCastle,
-                bool whiteKingLongCastle,
-                bool blackKingShortCastle,
-                bool blackKingLongCastle,
-                (int, int) enPassantTargetSquare,
-                byte halfmoveClock,
-                ulong zobristKey)
-            {
-                this.whiteKingShortCastle = whiteKingShortCastle;
-                this.whiteKingLongCastle = whiteKingLongCastle;
-                this.blackKingShortCastle = blackKingShortCastle;
-                this.blackKingLongCastle = blackKingLongCastle;
-                this.enPassantTargetSquare = enPassantTargetSquare;
-                this.halfMoveClock = halfmoveClock;
-                this.zobristKey = zobristKey;
+    public readonly struct Undo
+    {
+        public readonly bool whiteKingShortCastle, whiteKingLongCastle, blackKingShortCastle, blackKingLongCastle;
+        public readonly int enPassantTargetSquare;
+        public readonly byte halfMoveClock;
+        public readonly ulong zobristKey;
+
+        public Undo(
+            bool whiteKingShortCastle,
+            bool whiteKingLongCastle,
+            bool blackKingShortCastle,
+            bool blackKingLongCastle,
+            int enPassantTargetSquare,
+            byte halfmoveClock,
+            ulong zobristKey)
+        {
+            this.whiteKingShortCastle = whiteKingShortCastle;
+            this.whiteKingLongCastle = whiteKingLongCastle;
+            this.blackKingShortCastle = blackKingShortCastle;
+            this.blackKingLongCastle = blackKingLongCastle;
+            this.enPassantTargetSquare = enPassantTargetSquare;
+            this.halfMoveClock = halfmoveClock;
+            this.zobristKey = zobristKey;
+        }
+    }
+
+
+    internal class MoveGenerator
+    {
+        public static List<Move> GenerateLegalMoves(Board board)
+        {
+            // Instantiate List 
+            List<Move> legalMoves = new List<Move>();
+            List<Move> newMoves = new List<Move>();
+            GeneratePseudoMoves(board, board.sideToMove, newMoves);
+
+            foreach (var move in newMoves) {
+                if (!board.MakeMove(move, out Undo undo))
+                    continue;
+
+                legalMoves.Add(move);
+                board.UnmakeMove(move, undo);   
             }
+            return legalMoves;
         }
 
 
-        internal class MoveGenerator
+        public static void GeneratePseudoMoves(Board board, bool sideToMove, List<Move> moves)
         {
-            public static List<Move> GenerateLegalMoves(Board board)
+            // Loop through each square
+            for (int i = 0; i < board.boardSize; i++)
             {
-                // Instantiate List 
-                List<Move> legalMoves = new List<Move>();
-                List<Move> newMoves = new List<Move>();
-                GeneratePseudoMoves(board, board.sideToMove, newMoves);
+                if (board.board[i] == Piece.Inactive || board.board[i] == Piece.Empty) continue; // Empty square or Inactive square
 
-                foreach (var move in newMoves) {
-                    if (!board.MakeMove(move, out Undo undo))
-                        continue;
-
-                    legalMoves.Add(move);
-                    board.UnmakeMove(move, undo);   
+                if (IsPieceWhite(board.board[i]) && sideToMove || !IsPieceWhite(board.board[i]) && !sideToMove) // Check if its turn for this piece to move 
+                {
+                    IdentifyPieceAndGeneratePseudoMoves(i, board, moves);
                 }
-                return legalMoves;
+            }
+        }
+
+        private static void IdentifyPieceAndGeneratePseudoMoves(int square, Board board, List<Move> moves)
+        {
+            switch (Piece.GetPieceType(board.board[square]))
+            {
+                case Piece.King:
+                    GeneratePseudoMovesForKing(square, board, moves);
+                    break;
+                case Piece.Queen:
+                    GeneratePseudoMovesForQueen(square, board, moves);
+                    break;
+                case Piece.Rook:
+                    GeneratePseudoMovesForRook(square, board, moves);
+                    break;
+                case Piece.Bishop:
+                    GeneratePseudoMovesForBishop(square, board, moves);
+                    break;
+                case Piece.Knight:
+                    GeneratePseudoMovesForKnight(square, board, moves);
+                    break;
+                case Piece.Pawn:
+                    GeneratePseudoMovesForPawn(square, board, moves);
+                    break;
+                default:
+                    Console.WriteLine("Unidentified Piece found: " + board.board[square]);
+                    break;
+            }
+            //Console.WriteLine("Found " + moves.Count + " moves for: " +board.board[file, rank]);
+        }
+
+        private static void GeneratePseudoMovesForKing(int square, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece);
+
+
+            int fileSize = board.dimensionsOfBoard.Item1;
+
+            // Offsets for "standard" king moves
+            // King Moves
+            List<int> dSquares = new List<int>();
+            switch (square % fileSize)
+            {
+                case 0:
+                    dSquares.AddRange(new int[] { fileSize, 1, -fileSize, fileSize + 1, -fileSize + 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquares.AddRange(new int[] { fileSize, -fileSize, -fileSize - 1, fileSize - 1, -1 });
+                    break;
+                default:
+                    dSquares.AddRange(new int[] { fileSize, 1, -fileSize, -1, fileSize + 1, -fileSize + 1, -fileSize - 1, fileSize - 1 });
+                    break;
             }
 
+            
 
-            public static void GeneratePseudoMoves(Board board, bool sideToMove, List<Move> moves)
+            for (int i = 0; i < dSquares.Count; i++)
             {
-                // Loop through each square
-                for (int i = 0; i < board.dimensionsOfBoard.Item1; i++)
-                {
-                    for (int j = 0; j < board.dimensionsOfBoard.Item2; j++)
-                    {
-                        if (board.board[i, j] == 'x' || board.board[i, j] == 'e') continue; // Empty square or Inactive square
+                int nextSquare = square + dSquares[i];
+                    
+                if (nextSquare < 0 || nextSquare > board.boardSize) continue; // if point is outside of specific board dimensions
 
-                        if (IsPieceWhite(board.board[i, j]) && sideToMove || !IsPieceWhite(board.board[i, j]) && !sideToMove) // Check if its turn for this piece to move 
-                        {
-                            IdentifyPieceAndGeneratePseudoMoves(i, j, board, moves);
-                        }
+
+
+                byte targetPiece = board.board[nextSquare];
+
+                if (targetPiece == Piece.Inactive) continue;
+
+                if (targetPiece == Piece.Empty) // Empty square
+                {
+                    moves.Add(new Move((ushort) square, (ushort) nextSquare, currentPiece));
+                }
+                else    // Piece on the square      
+                {
+                    bool isTargetWhite = IsPieceWhite(targetPiece);
+
+                    if (isWhitePiece && !isTargetWhite || !isWhitePiece && isTargetWhite)
+                    {
+                        moves.Add(new Move((ushort) square, (ushort) nextSquare, currentPiece, capturedPiece: targetPiece));
                     }
                 }
             }
 
-            private static void IdentifyPieceAndGeneratePseudoMoves(int file, int rank, Board board, List<Move> moves)
+            // Castling moves
+            if (isWhitePiece) // white King
             {
-                switch (char.ToLower(board.board[file, rank]))
+                if (board.whiteKingShortCastle)
                 {
-                    case 'k':
-                        GeneratePseudoMovesForKing(file, rank, board, moves);
-                        break;
-                    case 'q':
-                        GeneratePseudoMovesForQueen(file, rank, board, moves);
-                        break;
-                    case 'r':
-                        GeneratePseudoMovesForRook(file, rank, board, moves);
-                        break;
-                    case 'b':
-                        GeneratePseudoMovesForBishop(file, rank, board, moves);
-                        break;
-                    case 'n':
-                        GeneratePseudoMovesForKnight(file, rank, board, moves);
-                        break;
-                    case 'p':
-                        GeneratePseudoMovesForPawn(file, rank, board, moves);
-                        break;
-                    default:
-                        Console.WriteLine("Unidentified Piece found: " + board.board[file, rank]);
-                        break;
+                    for (int i = square+1; i <= square + board.stepUntilRightBoardBorder(square); i++)
+                    {
+                        byte nextPiece = board.board[i];
+                        if (nextPiece == Piece.Empty)
+                        {
+                            continue;
+                        }
+                        else if (Piece.IsPieceAWhiteRook(nextPiece))
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square+2), currentPiece, castlingMoveFlag: true));
+                        }
+                        else break;
+                    }
                 }
-                //Console.WriteLine("Found " + moves.Count + " moves for: " +board.board[file, rank]);
+                if (board.whiteKingLongCastle)
+                {
+                    for (int i = square-1; i >= square - board.stepsUntilLeftBoardBorder(square); i--)
+                    {
+                        byte nextPiece = board.board[i];
+                        if (nextPiece == Piece.Empty)
+                        {
+                            continue;
+                        }
+                        else if (Piece.IsPieceAWhiteRook(nextPiece))
+                        {
+                            moves.Add(new Move((ushort) square, (ushort) (square-2), currentPiece, castlingMoveFlag: true));
+                        }
+                        else break;
+                    }
+                }
+            }
+            else // black King
+            {
+                if (board.blackKingShortCastle)
+                {
+                    for (int i = square+1; i <= square + board.stepUntilRightBoardBorder(square); i++)
+                    {
+                        byte nextPiece = board.board[i];
+                        if (nextPiece == Piece.Empty)
+                        {
+                            continue;
+                        }
+                        else if (Piece.IsPieceABlackRook(nextPiece))
+                        {
+                            moves.Add(new Move((ushort)(square), (ushort)(square+2), currentPiece, castlingMoveFlag: true));
+                        }
+                        else break;
+                    }
+                }
+                if (board.blackKingLongCastle)
+                {
+                    for (int i = square-1; i >= square - board.stepsUntilLeftBoardBorder(square); i--)
+                    {
+                        byte nextPiece = board.board[i];
+                        if (nextPiece == Piece.Empty)
+                        {
+                            continue;
+                        }
+                        else if (Piece.IsPieceABlackRook(nextPiece))
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square-2), currentPiece, castlingMoveFlag: true));
+                        }
+                        else break;
+                    }
+                }
+            }
+        }
+
+
+        private static void GeneratePseudoMovesForPawn(int square, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece);
+
+            int fileSize = board.dimensionsOfBoard.Item1;
+
+            if (isWhitePiece)
+            {
+                // One Square Push
+                if (!(square+fileSize >= board.boardSize)) // if point is inside of specific board dimensions
+                {
+                    byte targetPiece = board.board[square+fileSize];
+                    if (targetPiece == Piece.Empty)
+                    {
+                        if (board.IsSquareAtEndOfBoardForWhite(square+fileSize))
+                        {
+                            GeneratePromotionMoves(square, square+fileSize, currentPiece, isWhitePiece, moves);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort) square, (ushort) (square+fileSize), currentPiece)); // Add valid Move
+                        }
+
+                        
+                        // Two Squares Push
+                        if (((int)square / 8) == 1)
+                        {
+                            if (!(square+fileSize*2 >= board.boardSize))
+                            {
+                                targetPiece = board.board[square + fileSize*2];
+                                if (targetPiece == Piece.Empty)
+                                {
+                                    if (board.IsSquareAtEndOfBoardForWhite(square+fileSize*2))
+                                    {
+                                        GeneratePromotionMoves(square, square+fileSize*2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
+                                    }
+                                    else
+                                    {
+                                        moves.Add(new Move((ushort)square, (ushort)(square+fileSize*2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                    
+
+                // Hit Diagonal
+                // Left
+                if ((square + fileSize-1 < board.boardSize) && square % fileSize != 0)
+                {
+                    byte targetPiece = board.board[square + fileSize-1];
+
+                    if (board.enPassantTargetSquare == square + fileSize - 1)
+                    {
+                        byte enPaTargetPiece = board.board[board.enPassantTargetSquare-fileSize];
+                        if (!IsPieceWhite(enPaTargetPiece))
+                        {
+                            moves.Add((new Move((ushort)square, (ushort)board.enPassantTargetSquare, currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                        }
+                    }
+
+                    if (!IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square + fileSize-1)) // Checks if piece is black since this is code is executed for white Pawns
+                    {
+                        if (board.IsSquareAtEndOfBoardForWhite(square+fileSize-1))
+                        {
+                            GeneratePromotionMoves(square, square+fileSize-1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square+fileSize-1), currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                }
+
+                // Right
+                if ((square + fileSize + 1 < board.boardSize) && square % fileSize != fileSize-1)
+                {
+                    byte targetPiece = board.board[square+fileSize+1];
+
+                    if (board.enPassantTargetSquare == square + fileSize + 1)
+                    {
+                        byte enPaTargetPiece = board.board[board.enPassantTargetSquare - fileSize];
+                        if (!IsPieceWhite(enPaTargetPiece)) { 
+                            moves.Add((new Move((ushort)square, (ushort)board.enPassantTargetSquare, currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                        }
+                    }
+
+                    if (!IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square+fileSize+1)) // Checks if piece is black since this is code is executed for white Pawns
+                    {
+                        if (board.IsSquareAtEndOfBoardForWhite(square + fileSize+1))
+                        {
+                            GeneratePromotionMoves(square, square+fileSize+1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square+fileSize+1), currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                }
+
+                // En Passant Capture
+                //if (board.enPassantTargetSquare != -1)
+                //{
+                //    byte enPaTargetPiece = board.board[board.enPassantTargetSquare];
+                //    if (board.enPassantTargetSquare.Item2-1 == rank && !IsPieceWhite(enPaTargetPiece))
+                //    {
+                //        if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
+                //            {
+                //                moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                //            }
+                //    }
+                //}
+            }
+            else // Handling for black pieces
+            {
+                // One Square Push
+                if (!(square - fileSize < 0)) // if point is inside of specific board dimensions
+                {
+                    byte targetPiece = board.board[square-fileSize];
+                    if (targetPiece == Piece.Empty)
+                    {
+                        if (board.IsSquareAtEndOfBoardForBlack(square-fileSize))
+                        {
+                            GeneratePromotionMoves(square, square-fileSize, currentPiece, isWhitePiece, moves);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square-fileSize), currentPiece)); // Add valid Move
+                        }
+                        // Two Squares Push
+                        if (square / 8 == 6)
+                        {
+                            if (!(square - fileSize*2 < 0))
+                            {
+                                targetPiece = board.board[square - fileSize*2];
+                                if (targetPiece == Piece.Empty)
+                                {
+                                    if (board.IsSquareAtEndOfBoardForBlack(square-fileSize*2))
+                                    {
+                                        GeneratePromotionMoves(square, square-fileSize*2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
+                                    }
+                                    else
+                                    {
+                                        moves.Add(new Move((ushort)square, (ushort)(square-fileSize*2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                    }
+                                }
+                            }
+                        }
+                    } 
+                }
+
+                    
+
+                // Hit Diagonal
+                // Left
+                if ((square - fileSize - 1 >= 0) && square % fileSize != 0)
+                {
+                    byte targetPiece = board.board[square-fileSize-1];
+
+                    if (board.enPassantTargetSquare == square - fileSize - 1)
+                    {
+                        byte enPaTargetPiece = board.board[board.enPassantTargetSquare + fileSize];
+                        if (IsPieceWhite(enPaTargetPiece))
+                        {
+                            moves.Add((new Move((ushort)square, (ushort)board.enPassantTargetSquare, currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                        }
+                    }
+
+                    if (IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square-fileSize-1)) // Checks if piece is white since this is code is executed for black Pawns
+                    {
+                        if (board.IsSquareAtEndOfBoardForBlack(square-fileSize-1))
+                        {
+                            GeneratePromotionMoves(square, square-fileSize-1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square-fileSize-1), currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                }
+
+                // Right
+                if ((square - fileSize + 1 >= 0) && square % fileSize != fileSize - 1)
+                {
+                    byte targetPiece = board.board[square-fileSize+1];
+
+                    if (board.enPassantTargetSquare == square - fileSize + 1)
+                    {
+                        byte enPaTargetPiece = board.board[board.enPassantTargetSquare + fileSize];
+                        if (IsPieceWhite(enPaTargetPiece))
+                        {
+                            moves.Add((new Move((ushort)square, (ushort)board.enPassantTargetSquare, currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                        }
+                    }
+
+                    if (IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square-fileSize+1)) // Checks if piece is white since this is code is executed for black Pawns
+                    {
+                        if (board.IsSquareAtEndOfBoardForBlack(square - fileSize + 1))
+                        {
+                            GeneratePromotionMoves(square, square-fileSize+1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)(square-fileSize+1), currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                }
+
+                // En Passant Capture
+                //if (board.enPassantTargetSquare != (-1, -1))
+                //{
+                //    char enPaTargetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2+1];
+                //    if (board.enPassantTargetSquare.Item2+1 == rank && IsPieceWhite(enPaTargetPiece))
+                //    {
+                //        if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
+                //        {
+                //            moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
+                //        }
+                //    }
+                //}
+            }
+        }
+
+        private static void GeneratePromotionMoves(int fromSquare, int toSquare, byte currentPiece, bool isWhitePiece, List<Move> moves, byte capturedPiece = Piece.Empty, bool doublePushPawnMove = false)
+        {
+
+            byte[] pieces = { Piece.Queen, Piece.Rook, Piece.Bishop, Piece.Knight};
+            if (isWhitePiece)
+            {
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    pieces[i] += Piece.White;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    pieces[i] += Piece.Black;
+                }
+            }
+            if (capturedPiece == Piece.Empty)
+            {
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    moves.Add(new Move((ushort)fromSquare, (ushort)toSquare, currentPiece, promotionPiece: pieces[i], doubleSquarePushFlag: doublePushPawnMove));
+                }
+            }
+            else
+            {
+                for (int i = 0; i < pieces.Length; i++)
+                {
+                    moves.Add(new Move((ushort)fromSquare, (ushort)toSquare, currentPiece, capturedPiece: capturedPiece, promotionPiece: pieces[i], doubleSquarePushFlag: doublePushPawnMove));
+                }
+            }
+        }
+
+        private static void GeneratePseudoMovesForKnight(int square, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece);
+
+            int fileSize = board.dimensionsOfBoard.Item1;
+
+            List<int> dSquareKnight = new List<int>();
+
+            switch (square % fileSize) // Only select those squares that won't result in an illegal overlap to the next rank
+            {
+                case 0:
+                    dSquareKnight.AddRange(new int[] { 2 * fileSize + 1, fileSize + 2, -fileSize + 2, -2 * fileSize + 1 });
+                    break;
+                case 1:
+                    dSquareKnight.AddRange(new int[] { 2 * fileSize + 1, fileSize + 2, -fileSize + 2, -2 * fileSize + 1, -2 * fileSize - 1, 2 * fileSize - 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1 });
+                    break;
+                case var n when n == fileSize - 2:
+                    dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1 , 2 * fileSize + 1, -2 * fileSize + 1 });
+                    break;
+                default:
+                    dSquareKnight.AddRange(new int[] {2*fileSize + 1, // NNE
+                                    fileSize + 2, // NEE
+                                    -fileSize + 2, // SEE
+                                    -2 * fileSize + 1, // SSE
+                                    -2 * fileSize - 1, // SSW
+                                    - fileSize - 2, // SWW
+                                    fileSize - 2, // NWW
+                                    2*fileSize -1}); // NNW
+                    break;
             }
 
-            private static void GeneratePseudoMovesForKing(int file, int rank, Board board, List<Move> moves)
+            for (int i = 0; i < dSquareKnight.Count; i++)
             {
-                char currentPiece = board.board[file, rank];
-                bool isWhitePiece = IsPieceWhite(currentPiece);
+                int nextSquare = square + dSquareKnight[i];
+                if (nextSquare < 0 || nextSquare >= board.boardSize) continue; // if point is outside of specific board dimensions
 
 
 
-                // Offsets for "standard" king moves
-                int[] dFile = { 0, 1, 1, 1, 0, -1, -1, -1 };
-                int[] dRank = { 1, 1, 0, -1, -1, -1, 0, 1 };
+                byte targetPiece = board.board[nextSquare];
 
-                for (int i = 0; i < 8; i++)
+                if (targetPiece == Piece.Inactive) continue;
+
+                if (targetPiece == Piece.Empty) // Empty square
                 {
-                    int nextFile = file + dFile[i];
-                    int nextRank = rank + dRank[i];
-                    if (nextFile < 0 || nextFile >= board.dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= board.dimensionsOfBoard.Item2) continue; // if point is outside of specific board dimensions
+                    moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece));
+                }
+                else    // Piece on the square      
+                {
+                    bool isTargetWhite = IsPieceWhite(targetPiece);
 
-
-
-                    char targetPiece = board.board[nextFile, nextRank];
-
-                    if (targetPiece == 'x') continue;
-
-                    if (targetPiece == 'e') // Empty square
+                    if (isWhitePiece && !isTargetWhite || !isWhitePiece && isTargetWhite)
                     {
-                        moves.Add(new Move((byte)file, (byte)rank, (byte)nextFile, (byte)nextRank, currentPiece));
+                        moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece, capturedPiece: targetPiece));
+                    }
+                }
+            }
+
+        }
+
+        private static void GeneratePseudoMovesForRook(int square, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+            int fileSize = board.dimensionsOfBoard.Item1;
+            
+            List<int> dSquares = new List<int>();
+
+            switch(square % fileSize)
+            {
+                case 0:
+                    dSquares.AddRange(new int[] { fileSize, 1, -fileSize });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquares.AddRange(new int[] { fileSize, -fileSize, -1 });
+                    break;
+                default:
+                    dSquares.AddRange(new int[] { fileSize, 1, -fileSize, -1 });
+                    break;
+            }
+
+
+            GenerateSlidingMoves(square, dSquares, board, moves);
+        }
+
+        private static void GeneratePseudoMovesForBishop(int square, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+            int fileSize = board.dimensionsOfBoard.Item1;
+
+            List<int> dSquares = new List<int>();
+
+            switch (square % fileSize)
+            {
+                case 0:
+                    dSquares.AddRange(new int[] { fileSize + 1, -fileSize + 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquares.AddRange(new int[] { -fileSize - 1, fileSize - 1 });
+                    break;
+                default:
+                    dSquares.AddRange(new int[] { fileSize + 1, -fileSize + 1, -fileSize - 1, fileSize - 1 });
+                    break;
+            }
+
+            GenerateSlidingMoves(square, dSquares, board, moves);
+        }
+
+        private static void GeneratePseudoMovesForQueen(int square, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+            int fileSize = board.dimensionsOfBoard.Item1;
+
+            List<int> dSquares = new List<int>();
+
+            switch (square % fileSize)
+            {
+                case 0:
+                    dSquares.AddRange(new int[] { fileSize, 1, -fileSize, fileSize + 1, -fileSize + 1 });
+                    break;
+                case var n when n == fileSize - 1:
+                    dSquares.AddRange(new int[] { fileSize, -fileSize, -fileSize-1, fileSize-1, -1 });
+                    break;
+                default:
+                    dSquares.AddRange(new int[] { fileSize, 1, -fileSize, -1, fileSize + 1, -fileSize + 1, -fileSize - 1, fileSize - 1 });
+                    break;
+            }
+
+
+            GenerateSlidingMoves(square, dSquares, board, moves);
+
+        }
+
+
+        private static void GenerateSlidingMoves(int square, List<int> dSquares, Board board, List<Move> moves)
+        {
+            byte currentPiece = board.board[square];
+
+            bool isWhitePiece = IsPieceWhite(currentPiece);
+
+            for (int i = 0; i < dSquares.Count; i++)
+            {
+                for (int step = 1; step < 32; step++) // 32 because of the maximum technical board size
+                {
+                    int nextSquare = square + dSquares[i] * step;
+                    
+
+                    if (nextSquare < 0 || nextSquare >= board.boardSize) break; // if point is outside of specific board dimensions
+
+                    byte targetPiece = board.board[nextSquare];
+
+                    if (targetPiece == Piece.Inactive) break;
+
+                    if (targetPiece == Piece.Empty) // Empty square
+                    {
+                        moves.Add(new Move((ushort) square, (ushort)nextSquare, currentPiece));
                     }
                     else    // Piece on the square      
                     {
@@ -202,410 +715,27 @@ namespace uncy.model.boardAlt
 
                         if (isWhitePiece && !isTargetWhite || !isWhitePiece && isTargetWhite)
                         {
-                            moves.Add(new Move((byte)file, (byte)rank, (byte)nextFile, (byte)nextRank, currentPiece, capturedPiece: targetPiece));
+                            moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece, capturedPiece: targetPiece));
                         }
+                        break;
                     }
-                }
 
-                // Castling moves
-                if (isWhitePiece) // white King
-                {
-                    if (board.whiteKingShortCastle)
+                    int pos = nextSquare % board.dimensionsOfBoard.Item1; // Check if left or right board bounds has been reached
+                    //if ((pos == 0 || pos == 7) && (square - nextSquare) % board.boardSize == 0) break;
+                    if ((pos == 0 || pos == 7) && !(step == 0 || (pos == square % board.dimensionsOfBoard.Item1))) // second condition checks for case where rook/queen is moving vertically on the right or left bounds
                     {
-                        for (int i = file+1; i < board.dimensionsOfBoard.Item1; i++)
-                        {
-                            char nextPiece = board.board[i, rank];
-                            if (nextPiece == 'e')
-                            {
-                                continue;
-                            }
-                            else if (nextPiece == 'R')
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file + 2), (byte)rank, currentPiece, castlingMoveFlag: true));
-                            }
-                            else break;
-                        }
-                    }
-                    if (board.whiteKingLongCastle)
-                    {
-                        for (int i = file-1; i >= 0; i--)
-                        {
-                            char nextPiece = board.board[i, rank];
-                            if (nextPiece == 'e')
-                            {
-                                continue;
-                            }
-                            else if (nextPiece == 'R')
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file - 2), (byte)rank, currentPiece, castlingMoveFlag: true));
-                            }
-                            else break;
-                        }
-                    }
-                }
-                else // black King
-                {
-                    if (board.blackKingShortCastle)
-                    {
-                        for (int i = file+1; i < board.dimensionsOfBoard.Item1; i++)
-                        {
-                            char nextPiece = board.board[i, rank];
-                            if (nextPiece == 'e')
-                            {
-                                continue;
-                            }
-                            else if (nextPiece == 'r')
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file + 2), (byte)rank, currentPiece, castlingMoveFlag: true));
-                            }
-                            else break;
-                        }
-                    }
-                    if (board.blackKingLongCastle)
-                    {
-                        for (int i = file-1; i >= 0; i--)
-                        {
-                            char nextPiece = board.board[i, rank];
-                            if (nextPiece == 'e')
-                            {
-                                continue;
-                            }
-                            else if (nextPiece == 'r')
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file - 2), (byte)rank, currentPiece, castlingMoveFlag: true));
-                            }
-                            else break;
-                        }
+                        break;
                     }
                 }
             }
-
-
-            private static void GeneratePseudoMovesForPawn(int file, int rank, Board board, List<Move> moves)
-            {
-                char currentPiece = board.board[file, rank];
-                bool isWhitePiece = IsPieceWhite(currentPiece);
-
-
-                if (isWhitePiece)
-                {
-                    // One Square Push
-                    if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank + 1 < 0 || rank + 1 >= board.dimensionsOfBoard.Item2)) // if point is inside of specific board dimensions
-                    {
-                        char targetPiece = board.board[file, rank + 1];
-                        if (targetPiece == 'e')
-                        {
-                            if (board.IsSquareAtEndOfBoardForWhite(file, rank + 1))
-                            {
-                                GeneratePromotionMoves(file, rank, file, rank + 1, currentPiece, isWhitePiece, moves);
-                            }
-                            else
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank + 1), currentPiece)); // Add valid Move
-                            }
-
-                            // Two Squares Push
-                            if (rank == 1)
-                            {
-                                if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank + 2 < 0 || rank + 2 >= board.dimensionsOfBoard.Item2))
-                                {
-                                    targetPiece = board.board[file, rank + 2];
-                                    if (targetPiece == 'e')
-                                    {
-                                        if (board.IsSquareAtEndOfBoardForWhite(file, rank + 2))
-                                        {
-                                            GeneratePromotionMoves(file, rank, file, rank + 2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
-                                        }
-                                        else
-                                        {
-                                            moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank + 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    
-
-                    // Hit Diagonal
-                    // Left
-                    if (!(file - 1 < 0 || file - 1 >= board.dimensionsOfBoard.Item1 || rank + 1 < 0 || rank + 1 >= board.dimensionsOfBoard.Item2))
-                    {
-                        char targetPiece = board.board[file - 1, rank + 1];
-                        if (!IsPieceWhite(targetPiece) && board.IsSquareOccuptiedByPiece(file - 1, rank + 1)) // Checks if piece is black since this is code is executed for white Pawns
-                        {
-                            if (board.IsSquareAtEndOfBoardForWhite(file - 1, rank + 1))
-                            {
-                                GeneratePromotionMoves(file, rank, file - 1, rank + 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
-                            }
-                            else
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file - 1), (byte)(rank + 1), currentPiece, capturedPiece: targetPiece));
-                            }
-                        }
-                    }
-
-                    // Right
-                    if (!(file + 1 < 0 || file + 1 >= board.dimensionsOfBoard.Item1 || rank + 1 < 0 || rank + 1 >= board.dimensionsOfBoard.Item2))
-                    {
-                        char targetPiece = board.board[file + 1, rank + 1];
-                        if (!IsPieceWhite(targetPiece) && board.IsSquareOccuptiedByPiece(file + 1, rank + 1)) // Checks if piece is black since this is code is executed for white Pawns
-                        {
-                            if (board.IsSquareAtEndOfBoardForWhite(file + 1, rank + 1))
-                            {
-                                GeneratePromotionMoves(file, rank, file + 1, rank + 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
-                            }
-                            else
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file + 1), (byte)(rank + 1), currentPiece, capturedPiece: targetPiece));
-                            }
-                        }
-                    }
-
-                    // En Passant Capture
-                    if (board.enPassantTargetSquare != (-1, -1))
-                    {
-                        char enPaTargetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2-1];
-                        if (board.enPassantTargetSquare.Item2-1 == rank && !IsPieceWhite(enPaTargetPiece))
-                        {
-                            if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
-                                {
-                                    moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
-                                }
-                        }
-                    }
-                }
-                else // Handling for black pieces
-                {
-                    // One Square Push
-                    if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank - 1 < 0 || rank - 1 >= board.dimensionsOfBoard.Item2)) // if point is inside of specific board dimensions
-                    {
-                        char targetPiece = board.board[file, rank - 1];
-                        if (targetPiece == 'e')
-                        {
-                            if (board.IsSquareAtEndOfBoardForBlack(file, rank - 1))
-                            {
-                                GeneratePromotionMoves(file, rank, file, rank - 1, currentPiece, isWhitePiece, moves);
-                            }
-                            else
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank - 1), currentPiece)); // Add valid Move
-                            }
-                            // Two Squares Push
-                            if (rank == 6)
-                            {
-                                if (!(file < 0 || file >= board.dimensionsOfBoard.Item1 || rank - 2 < 0 || rank - 2 >= board.dimensionsOfBoard.Item2))
-                                {
-                                    targetPiece = board.board[file, rank - 2];
-                                    if (targetPiece == 'e')
-                                    {
-                                        if (board.IsSquareAtEndOfBoardForBlack(file, rank - 2))
-                                        {
-                                            GeneratePromotionMoves(file, rank, file, rank - 2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
-                                        }
-                                        else
-                                        {
-                                            moves.Add(new Move((byte)file, (byte)rank, (byte)file, (byte)(rank - 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
-                                        }
-                                    }
-                                }
-                            }
-                        } 
-                    }
-
-                    
-
-                    // Hit Diagonal
-                    // Left
-                    if (!(file - 1 < 0 || file - 1 >= board.dimensionsOfBoard.Item1 || rank - 1 < 0 || rank - 1 >= board.dimensionsOfBoard.Item2))
-                    {
-                        char targetPiece = board.board[file - 1, rank - 1];
-                        if (IsPieceWhite(targetPiece) && board.IsSquareOccuptiedByPiece(file - 1, rank - 1)) // Checks if piece is white since this is code is executed for black Pawns
-                        {
-                            if (board.IsSquareAtEndOfBoardForBlack(file - 1, rank - 1))
-                            {
-                                GeneratePromotionMoves(file, rank, file - 1, rank - 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
-                            }
-                            else
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file - 1), (byte)(rank - 1), currentPiece, capturedPiece: targetPiece));
-                            }
-                        }
-                    }
-
-                    // Right
-                    if (!(file + 1 < 0 || file + 1 >= board.dimensionsOfBoard.Item1 || rank - 1 < 0 || rank - 1 >= board.dimensionsOfBoard.Item2))
-                    {
-                        char targetPiece = board.board[file + 1, rank - 1];
-                        if (IsPieceWhite(targetPiece) && board.IsSquareOccuptiedByPiece(file + 1, rank - 1)) // Checks if piece is white since this is code is executed for black Pawns
-                        {
-                            if (board.IsSquareAtEndOfBoardForBlack(file + 1, rank - 1))
-                            {
-                                GeneratePromotionMoves(file, rank, file + 1, rank - 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
-                            }
-                            else
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)(file + 1), (byte)(rank - 1), currentPiece, capturedPiece: targetPiece));
-                            }
-                        }
-                    }
-
-                    // En Passant Capture
-                    if (board.enPassantTargetSquare != (-1, -1))
-                    {
-                        char enPaTargetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2+1];
-                        if (board.enPassantTargetSquare.Item2+1 == rank && IsPieceWhite(enPaTargetPiece))
-                        {
-                            if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
-                            {
-                                moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
-                            }
-                        }
-                    }
-                }
-            }
-
-            private static void GeneratePromotionMoves(int fromFile, int fromRank, int toFile, int toRank, char currentPiece, bool isWhitePiece, List<Move> moves, char capturedPiece = 'e', bool doublePushPawnMove = false)
-            {
-
-                char[] pieces = { 'q', 'r', 'b', 'n' };
-                if (isWhitePiece)
-                {
-                    for (int i = 0; i < pieces.Length; i++)
-                    {
-                        pieces[i] = char.ToUpper(pieces[i]);
-                    }
-                }
-                if (capturedPiece == 'e')
-                {
-                    for (int i = 0; i < pieces.Length; i++)
-                    {
-                        moves.Add(new Move((byte)fromFile, (byte)fromRank, (byte)toFile, (byte)toRank, currentPiece, promotionPiece: pieces[i], doubleSquarePushFlag: doublePushPawnMove));
-                    }
-                }
-                else
-                {
-                    for (int i = 0; i < pieces.Length; i++)
-                    {
-                        moves.Add(new Move((byte)fromFile, (byte)fromRank, (byte)toFile, (byte)toRank, currentPiece, capturedPiece: capturedPiece, promotionPiece: pieces[i], doubleSquarePushFlag: doublePushPawnMove));
-                    }
-                }
-            }
-
-            private static void GeneratePseudoMovesForKnight(int file, int rank, Board board, List<Move> moves)
-            {
-                char currentPiece = board.board[file, rank];
-                bool isWhitePiece = IsPieceWhite(currentPiece);
-
-
-                int[] dFile = { 1, 2, 2, 1, -1, -2, -2, -1 };
-                int[] dRank = { 2, 1, -1, -2, -2, -1, 1, 2 };
-
-
-                for (int i = 0; i < 8; i++)
-                {
-                    int nextFile = file + dFile[i];
-                    int nextRank = rank + dRank[i];
-                    if (nextFile < 0 || nextFile >= board.dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= board.dimensionsOfBoard.Item2) continue; // if point is outside of specific board dimensions
-
-
-
-                    char targetPiece = board.board[nextFile, nextRank];
-
-                    if (targetPiece == 'x') continue;
-
-                    if (targetPiece == 'e') // Empty square
-                    {
-                        moves.Add(new Move((byte)file, (byte)rank, (byte)nextFile, (byte)nextRank, currentPiece));
-                    }
-                    else    // Piece on the square      
-                    {
-                        bool isTargetWhite = IsPieceWhite(targetPiece);
-
-                        if (isWhitePiece && !isTargetWhite || !isWhitePiece && isTargetWhite)
-                        {
-                            moves.Add(new Move((byte)file, (byte)rank, (byte)nextFile, (byte)nextRank, currentPiece, capturedPiece: targetPiece));
-                        }
-                    }
-                }
-
-            }
-
-            private static void GeneratePseudoMovesForRook(int file, int rank, Board board, List<Move> moves)
-            {
-                char currentPiece = board.board[file, rank];
-                int[] dFile = { 0, 0, -1, 1 };
-                int[] dRank = { -1, 1, 0, 0 };
-
-                GenerateSlidingMoves(file, rank, dFile, dRank, board, moves);
-            }
-
-            private static void GeneratePseudoMovesForBishop(int file, int rank, Board board, List<Move> moves)
-            {
-                char currentPiece = board.board[file, rank];
-
-
-                int[] dFile = { 1, 1, -1, -1 };
-                int[] dRank = { 1, -1, -1, 1 };
-
-                GenerateSlidingMoves(file, rank, dFile, dRank, board, moves);
-            }
-
-            private static void GeneratePseudoMovesForQueen(int file, int rank, Board board, List<Move> moves)
-            {
-                char currentPiece = board.board[file, rank];
-
-
-                int[] dFile = { 1, 1, -1, -1, 0, 0, -1, 1 };
-                int[] dRank = { 1, -1, -1, 1, -1, 1, 0, 0 };
-
-                GenerateSlidingMoves(file, rank, dFile, dRank, board, moves);
-
-            }
-
-
-            private static void GenerateSlidingMoves(int file, int rank, int[] dFile, int[] dRank, Board board, List<Move> moves)
-            {
-                char currentPiece = board.board[file, rank];
-
-                bool isWhitePiece = IsPieceWhite(currentPiece);
-
-                for (int i = 0; i < dFile.Length; i++)
-                {
-                    for (int step = 1; step < 32; step++) // 32 because of the maximum technical board size
-                    {
-                        int nextFile = file + dFile[i] * step;
-                        int nextRank = rank + dRank[i] * step;
-
-
-                        if (nextFile < 0 || nextFile >= board.dimensionsOfBoard.Item1 || nextRank < 0 || nextRank >= board.dimensionsOfBoard.Item2) break; // if point is outside of specific board dimensions
-
-                        char targetPiece = board.board[nextFile, nextRank];
-
-                        if (targetPiece == 'x') break;
-
-                        if (targetPiece == 'e') // Empty square
-                        {
-                            moves.Add(new Move((byte)file, (byte)rank, (byte)nextFile, (byte)nextRank, currentPiece));
-                        }
-                        else    // Piece on the square      
-                        {
-                            bool isTargetWhite = IsPieceWhite(targetPiece);
-
-                            if (isWhitePiece && !isTargetWhite || !isWhitePiece && isTargetWhite)
-                            {
-                                moves.Add(new Move((byte)file, (byte)rank, (byte)nextFile, (byte)nextRank, currentPiece, capturedPiece: targetPiece));
-                            }
-                            break;
-                        }
-
-                    }
-                }
-            }
-
-
-
-            static bool IsPieceWhite(char c) => c >= 'A' && c <= 'Z';
         }
+
+        static bool IsPieceWhite(byte b)
+        {
+            if (Piece.White == Piece.GetColor(b)) return true;
+            return false;
+        }
+
+        //static bool IsPieceWhite(char c) => c >= 'A' && c <= 'Z';
+    }
 }

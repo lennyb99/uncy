@@ -13,15 +13,9 @@ namespace uncy.model.boardAlt
      */
     internal static class BoardInitializer
     {
-        public static void SetInformationOfSquaresFromFen(char[,] board, Fen fen, int rankDimension)
+        public static void SetInformationOfSquaresFromFen(byte[] board, Fen fen, int rankDimension)
         {
-            for (int i = 0; i < board.GetLength(0); i++)
-            {
-                for (int j = 0; j< board.GetLength(1); j++)
-                {
-                    board[i,j] = FenParser.GetSquareOccupationInformation(fen.piecePositions, i, j, rankDimension);
-                }
-            }
+            FenParser.GetSquareOccupationInformation(board, fen.piecePositions, rankDimension);
         }
 
         public static bool SetSideToMove(Fen fen)
@@ -43,14 +37,15 @@ namespace uncy.model.boardAlt
         /*
          * Returns the value for the en passant target square with coordinates for file and rank.
          */
-        public static (int,int) SetEnPassantTargetSquare(Fen fen)
+        public static int SetEnPassantTargetSquare(Fen fen, int width)
         {
             if(fen.possibleEnPassantCapture.Equals("-"))
             {
-                return (-1, -1);
+                return -1;
             }
             string[] coords = fen.possibleEnPassantCapture.Split(','); // Splitting the information of the two squares into an array that holds the two coordinates
-            return (int.Parse(coords[0]), int.Parse(coords[1]));
+        
+            return (int.Parse(coords[0])-1)   +  (int.Parse(coords[1])-1) * width;
         }
 
         public static int SetHalfMoveClock(Fen fen)        

@@ -13,16 +13,11 @@ namespace uncy.model.boardAlt
 
         /*
          *  three dimensional array
-         *  first value represents the file, second value the rank and the third value the piecetype 
+         *  first value represents square and second the value of the piecetype 
          *  
-         *  piecetypes  0 = P  6 = p
-         *              1 = N  7 = n
-         *              2 = B  8 = b
-         *              3 = R  9 = r
-         *              4 = Q 10 = q
-         *              5 = K 11 = k
+         *  piecetypes use values of Piece.cs
         */
-        ulong[,,] table;
+        ulong[,] table;
         public ulong zobrist_side;
         public ulong[] zobrist_EP;
         public ulong[] zobrist_castle;
@@ -36,7 +31,7 @@ namespace uncy.model.boardAlt
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
 
-            table = new ulong[files, ranks, 12];
+            table = new ulong[files * ranks, 24];
 
             FillTableWithRandomKeys();
             zobrist_side = CreateRandomUlong();
@@ -55,53 +50,21 @@ namespace uncy.model.boardAlt
             int count = 0;
             for (int i = 0; i < table.GetLength(0); i++)
             {
-                for(int j = 0; j < table.GetLength(1); j++)
+                for(int k = 0;  k < table.GetLength(1); k++)
                 {
-                    for(int k = 0;  k < table.GetLength(2); k++)
-                    {
-                        table[i, j, k] = CreateRandomUlong();
-                        debugDict.Add(table[i, j, k], $"Piece {k} on i:{i},j:{j}");
-                        count++;
-                    }
+                    table[i, k] = CreateRandomUlong();
+                    debugDict.Add(table[i, k], $"Piece {k} on square i:{i}");
+                    count++;
                 }
             }
 
             Console.WriteLine("Created: " + count + " zobrist keys for the Board.");
         }
 
-        public ulong GetZobristKeyFromTable(int file, int rank, char pieceType)
+        public ulong GetZobristKeyFromTable(int square, byte pieceType)
         {
-            int pieceId;
-            switch (pieceType)
-            {
-                case 'P':
-                    pieceId = 0; break;
-                case 'N':
-                    pieceId = 1; break;
-                case 'B':
-                    pieceId = 2; break;
-                case 'R':
-                    pieceId = 3; break;
-                case 'Q':
-                    pieceId = 4; break;
-                case 'K':
-                    pieceId = 5; break;
-                case 'p':
-                    pieceId = 6; break;
-                case 'n':
-                    pieceId = 7; break;
-                case 'b':
-                    pieceId = 8; break;
-                case 'r':
-                    pieceId = 9; break;
-                case 'q':
-                    pieceId = 10; break;
-                case 'k':
-                    pieceId = 11; break;
-                default:
-                    throw new UnreachableException("Invalid Piece given as argument for zobrist table: " + pieceType);
-            }
-            return table[file, rank, pieceId];
+            //Console.WriteLine($"square: {square} while table size goes up to {table.GetLength(0)}. looking for pieceType: {pieceType}, <=> {table.GetLength(1)}");
+            return table[square, pieceType];
         }
 
         /*
