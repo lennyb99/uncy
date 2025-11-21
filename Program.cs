@@ -29,11 +29,17 @@ class Program
         Fen closedPositionWithBishops = new Fen("5b2/3k4/1p1p1p1p/pPpPpPpP/P1P1P1P1/8/3BK3/8 w - - 0 1");
         Fen mateToFind = new Fen("r2r2k1/pp3ppp/2p2b2/5q2/4RB2/1P3PP1/P4P1P/3QR1K1 w - - 0 1");
 
-        Board board = new Board(tempFen);
+        Board board = new Board(fen);
         //board.PrintBoardToConsole();
 
         //Console.WriteLine(board.ToFen());
-        StartPerftDebug(board, 4);
+        //StartPerftDebug(board, 4);
+
+
+        MoveLookUpTables lut = new MoveLookUpTables(board);
+
+        
+
 
         //Stopwatch stopwatch = Stopwatch.StartNew();
         //for (int i = 0; i < 4_000_000; i++)
@@ -44,7 +50,7 @@ class Program
         //Console.WriteLine(stopwatch.ToString());
 
 
-        //StartSearch(board, 8);
+        //StartSearch(board, 6);
 
         //StartGrpcServer();
 
@@ -212,7 +218,7 @@ class Program
 
         Console.WriteLine(move.ToString());
         board.MakeMove(move, out Undo undo);
-        board.PrintBoardToConsoleShort();
+        board.PrintBoardToConsole();
     }
 
     private static void StartPerftDebug(Board board, int depth)

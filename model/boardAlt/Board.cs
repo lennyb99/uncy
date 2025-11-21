@@ -449,18 +449,14 @@ namespace uncy.model.boardAlt
 
         public bool IsKingInCheck(bool color)
         {
-            (int, int) kingPosition;
             if (color == true)
             {
-                kingPosition = GetWhiteKingPosition();
+                if (IsSquareAttackedByColor(!color, whiteKingPos)) return true;
             }
             else
             {
-                kingPosition = GetBlackKingPosition();
+                if (IsSquareAttackedByColor(!color, blackKingPos)) return true;
             }
-
-            if (IsSquareAttackedByColor(!color, kingPosition.Item1, kingPosition.Item2)) return true;
-
             return false;
         }
 
