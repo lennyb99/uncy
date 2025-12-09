@@ -55,7 +55,10 @@ namespace uncy.model.boardAlt
             // Create the zobrist keys for this board
             zobristKeys = new ZobristKeys(dimensionsOfBoard.Item1, dimensionsOfBoard.Item2);
             currentZobristKey = CreateZobristKeyFromCurrentBoard();
-            
+
+            // Create the lookup tables for this board
+            MoveGenerator.AssignTables(new MoveLookUpTables(this));
+
         }
 
 

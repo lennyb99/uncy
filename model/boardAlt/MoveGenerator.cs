@@ -100,8 +100,15 @@ namespace uncy.model.boardAlt
     }
 
 
-    internal class MoveGenerator
+    internal static class MoveGenerator
     {
+        private static MoveLookUpTables tables;
+
+        public static void AssignTables(MoveLookUpTables lookUpTables)
+        {
+            tables = lookUpTables;
+        }
+
         public static List<Move> GenerateLegalMoves(Board board)
         {
             // Instantiate List 
@@ -163,7 +170,7 @@ namespace uncy.model.boardAlt
             //Console.WriteLine("Found " + moves.Count + " moves for: " +board.board[file, rank]);
         }
 
-        private static void GeneratePseudoMovesForKing(int square, Board board, List<Move> moves)
+        private static void GeneratePseudoMovesForKingOLD(int square, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
             bool isWhitePiece = IsPieceWhite(currentPiece);
@@ -289,8 +296,102 @@ namespace uncy.model.boardAlt
             }
         }
 
+        private static void GeneratePseudoMovesForKing(int square, Board board, List<Move> moves)
+        {
+            var boardArray = board.board;
+            byte currentPiece = boardArray[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece);
 
-        private static void GeneratePseudoMovesForPawn(int square, Board board, List<Move> moves)
+            // --- TEIL A: Normale Königs-Moves (via LUT) ---
+
+            var kMoves = tables.kingMoves;
+            int startIndex = tables.kingMoveStartIndex[square];
+            int count = tables.kingMoveCount[square];
+            int endIndex = startIndex + count;
+
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                int nextSquare = (int)kMoves[i];
+                byte targetPiece = boardArray[nextSquare];
+
+                if (targetPiece == Piece.Inactive) continue;
+
+                if (targetPiece == Piece.Empty)
+                {
+                    moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece));
+                }
+                else
+                {
+                    bool isTargetWhite = IsPieceWhite(targetPiece);
+                    if (isWhitePiece != isTargetWhite)
+                    {
+                        moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece, capturedPiece: targetPiece));
+                    }
+                }
+            }
+
+            // --- TEIL B: Rochade (Castling) ---
+            // Da Rochaden selten sind und spezielle Logik (Strecke frei? Turm da?) brauchen,
+            // ist die prozedurale Logik hier oft besser als ein komplexer Lookup.
+            // Ich habe die Logik beibehalten, aber leicht bereinigt.
+
+            if (isWhitePiece)
+            {
+                if (board.whiteKingShortCastle) CheckCastling(square, board, moves, currentPiece, true, true);
+                if (board.whiteKingLongCastle) CheckCastling(square, board, moves, currentPiece, true, false);
+            }
+            else
+            {
+                if (board.blackKingShortCastle) CheckCastling(square, board, moves, currentPiece, false, true);
+                if (board.blackKingLongCastle) CheckCastling(square, board, moves, currentPiece, false, false);
+            }
+        }
+
+        private static void CheckCastling(int kingSquare, Board board, List<Move> moves, byte kingPiece, bool isWhite, bool isShortParams)
+        {
+            int direction = isShortParams ? 1 : -1;
+            // Hier nutzen wir deine Logik für die Distanz zum Rand
+            int stepsToBorder = isShortParams
+                ? board.stepUntilRightBoardBorder(kingSquare)
+                : board.stepsUntilLeftBoardBorder(kingSquare);
+
+            // Wir suchen nach dem Turm. Der Turm ist irgendwo in Richtung Rand.
+            for (int step = 1; step <= stepsToBorder; step++)
+            {
+                int checkSquare = kingSquare + (step * direction);
+                byte pieceAtPos = board.board[checkSquare];
+
+                if (pieceAtPos == Piece.Inactive) break; // Sollte bei Castling nicht passieren, aber sicher ist sicher
+
+                if (pieceAtPos == Piece.Empty)
+                {
+                    continue; // Weiter suchen
+                }
+                else
+                {
+                    // Wir sind auf eine Figur gestoßen. Ist es der korrekte Turm?
+                    bool isRook = isWhite ? Piece.IsPieceAWhiteRook(pieceAtPos) : Piece.IsPieceABlackRook(pieceAtPos);
+
+                    if (isRook)
+                    {
+                        // Rochade möglich! 
+                        // Ziel ist immer 2 Felder in die Richtung (gemäß Standard Schachregeln).
+                        // ACHTUNG: Prüfen, ob der Weg dahin (Feld 1 und Feld 2) auch wirklich leer war.
+                        // Deine ursprüngliche Logik prüfte "Empty -> continue", und wenn Turm -> Move.
+                        // Das setzt voraus, dass step 1 und step 2 leer waren.
+                        // Bei Standard-Schach ist der Turm auf Distanz 3 oder 4. 
+                        // Deine Logik fügt den Move hinzu, sobald der Turm gefunden wird. 
+                        // Das Ziel des Königs ist kingSquare + 2*direction.
+
+                        moves.Add(new Move((ushort)kingSquare, (ushort)(kingSquare + (2 * direction)), kingPiece, castlingMoveFlag: true));
+                    }
+                    // Wenn es kein Turm ist (sondern Läufer/Springer/etc), ist der Weg blockiert -> Abbruch.
+                    break;
+                }
+            }
+        }
+
+        private static void GeneratePseudoMovesForPawnOLD(int square, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
             bool isWhitePiece = IsPieceWhite(currentPiece);
@@ -392,19 +493,6 @@ namespace uncy.model.boardAlt
                         }
                     }
                 }
-
-                // En Passant Capture
-                //if (board.enPassantTargetSquare != -1)
-                //{
-                //    byte enPaTargetPiece = board.board[board.enPassantTargetSquare];
-                //    if (board.enPassantTargetSquare.Item2-1 == rank && !IsPieceWhite(enPaTargetPiece))
-                //    {
-                //        if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
-                //            {
-                //                moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
-                //            }
-                //    }
-                //}
             }
             else // Handling for black pieces
             {
@@ -500,19 +588,218 @@ namespace uncy.model.boardAlt
                         }
                     }
                 }
+            }
+        }
 
-                // En Passant Capture
-                //if (board.enPassantTargetSquare != (-1, -1))
-                //{
-                //    char enPaTargetPiece = board.board[board.enPassantTargetSquare.Item1, board.enPassantTargetSquare.Item2+1];
-                //    if (board.enPassantTargetSquare.Item2+1 == rank && IsPieceWhite(enPaTargetPiece))
-                //    {
-                //        if (board.enPassantTargetSquare.Item1 - file == 1 || board.enPassantTargetSquare.Item1 - file == -1) // En passant Piece is directly next to pawn
-                //        {
-                //            moves.Add((new Move((byte)file, (byte)rank, (byte)board.enPassantTargetSquare.Item1, (byte)(board.enPassantTargetSquare.Item2), currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
-                //        }
-                //    }
-                //}
+        private static void GeneratePseudoMovesForPawn(int square, Board board, List<Move> moves)
+        {
+            // 1. Lokale Referenzen für Speed & Lesbarkeit
+            var boardArray = board.board;
+            var distToEdge = tables.squaresToEdge; // Das Array [64 * 8] (bzw. TotalSquares * 8)
+            int width = tables.BoardWidth;
+            int totalSquares = tables.TotalSquares;
+            int squareIndexOffset = square * 8; // Offset im squaresToEdge Array
+
+            byte currentPiece = boardArray[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece);
+
+            // Hilfsvariablen für Promotion-Check (vermeidet Methodenaufruf IsSquareAtEndOfBoard)
+            // Ein Bauer promoted, wenn er in die letzte Reihe zieht.
+            // Für Weiß: Indizes [TotalSquares - Width ... TotalSquares - 1]
+            // Für Schwarz: Indizes [0 ... Width - 1]
+
+            if (isWhitePiece)
+            {
+                int up = square + width;
+
+                // --- A. MOVES (PUSH) ---
+                // Bounds-Check: Ist "oben" noch im Brett?
+                if (up < totalSquares)
+                {
+                    // 1. Single Push
+                    if (boardArray[up] == Piece.Empty)
+                    {
+                        // Ist das Zielfeld auf der letzten Reihe? -> Promotion
+                        if (up >= totalSquares - width)
+                        {
+                            GeneratePromotionMoves(square, up, currentPiece, true, moves);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)up, currentPiece));
+
+                            // 2. Double Push
+                            // Nur möglich, wenn Feld davor frei war (checked) UND wir auf Startreihe stehen.
+                            // Startreihe Weiß (Index 1): Zwischen width und 2*width.
+                            // Ersetzt: ((int)square / 8) == 1
+                            if (square >= width && square < width * 2)
+                            {
+                                int up2 = up + width;
+                                // Prüfen ob Ziel leer
+                                if (boardArray[up2] == Piece.Empty)
+                                {
+                                    // Double Push kann technisch keine Promotion sein (außer auf Miniboard 4x4, aber vernachlässigbar)
+                                    moves.Add(new Move((ushort)square, (ushort)up2, currentPiece, doubleSquarePushFlag: true));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- B. ATTACKS (DIAGONAL) ---
+                // Weiß schlägt nach NW (Direction 7) und NE (Direction 1)
+                // Wir nutzen squaresToEdge, um zu sehen, ob wir am Rand kleben.
+
+                // 1. Capture Left (NW - Direction Index 7)
+                // Check: Haben wir Platz nach NW? (Vermeidet square % fileSize == 0)
+                if (distToEdge[squareIndexOffset + 7] > 0)
+                {
+                    int targetSq = up - 1;
+                    // Hier prüfen wir Piece.Inactive, falls das Board Löcher hat
+                    byte targetPiece = boardArray[targetSq];
+
+                    if (targetPiece != Piece.Inactive && targetPiece != Piece.Empty)
+                    {
+                        if (!IsPieceWhite(targetPiece)) // Gegner?
+                        {
+                            if (targetSq >= totalSquares - width) // Promotion Check
+                                GeneratePromotionMoves(square, targetSq, currentPiece, true, moves, capturedPiece: targetPiece);
+                            else
+                                moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                    // En Passant Check (NW)
+                    else if (targetSq == board.enPassantTargetSquare)
+                    {
+                        // Bei EnPassant steht der Bauer "unter" dem Ziel (bei Weiß) -> also targetSq - width
+                        // Logik aus deinem Code übernommen: enPassantTargetSquare - fileSize
+                        byte epPiece = boardArray[targetSq - width];
+                        if (!IsPieceWhite(epPiece) && epPiece != Piece.Empty)
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: epPiece, enPassantCaptureFlag: true));
+                        }
+                    }
+                }
+
+                // 2. Capture Right (NE - Direction Index 1)
+                if (distToEdge[squareIndexOffset + 1] > 0)
+                {
+                    int targetSq = up + 1;
+                    byte targetPiece = boardArray[targetSq];
+
+                    if (targetPiece != Piece.Inactive && targetPiece != Piece.Empty)
+                    {
+                        if (!IsPieceWhite(targetPiece))
+                        {
+                            if (targetSq >= totalSquares - width)
+                                GeneratePromotionMoves(square, targetSq, currentPiece, true, moves, capturedPiece: targetPiece);
+                            else
+                                moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                    // En Passant Check (NE)
+                    else if (targetSq == board.enPassantTargetSquare)
+                    {
+                        byte epPiece = boardArray[targetSq - width];
+                        if (!IsPieceWhite(epPiece) && epPiece != Piece.Empty)
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: epPiece, enPassantCaptureFlag: true));
+                        }
+                    }
+                }
+            }
+            else // BLACK PIECE
+            {
+                int down = square - width;
+
+                // --- A. MOVES (PUSH) ---
+                if (down >= 0)
+                {
+                    if (boardArray[down] == Piece.Empty)
+                    {
+                        // Promotion Check Schwarz (Reihe 0 -> Indizes < Width)
+                        if (down < width)
+                        {
+                            GeneratePromotionMoves(square, down, currentPiece, false, moves);
+                        }
+                        else
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)down, currentPiece));
+
+                            // Double Push Schwarz
+                            // Startreihe Schwarz (Index 6 bei Standard): Zwischen Total - 2*Width und Total - Width
+                            // Beispiel 8x8: Quadrat 48 bis 55.
+                            if (square >= totalSquares - (2 * width) && square < totalSquares - width)
+                            {
+                                int down2 = down - width;
+                                if (boardArray[down2] == Piece.Empty)
+                                {
+                                    moves.Add(new Move((ushort)square, (ushort)down2, currentPiece, doubleSquarePushFlag: true));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- B. ATTACKS (DIAGONAL) ---
+                // Schwarz schlägt nach SW (Direction 5) und SE (Direction 3)
+
+                // 1. Capture Left (von Schwarz aus gesehen, also SW - Direction 5)
+                // Achtung: SW (Index 5) auf dem Board bedeutet index - width - 1
+                if (distToEdge[squareIndexOffset + 5] > 0)
+                {
+                    int targetSq = down - 1;
+                    byte targetPiece = boardArray[targetSq];
+
+                    if (targetPiece != Piece.Inactive && targetPiece != Piece.Empty)
+                    {
+                        if (IsPieceWhite(targetPiece)) // Gegner (Weiß)?
+                        {
+                            if (targetSq < width) // Promotion
+                                GeneratePromotionMoves(square, targetSq, currentPiece, false, moves, capturedPiece: targetPiece);
+                            else
+                                moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                    // En Passant
+                    else if (targetSq == board.enPassantTargetSquare)
+                    {
+                        // Bauer steht "über" dem Ziel -> targetSq + width
+                        byte epPiece = boardArray[targetSq + width];
+                        if (IsPieceWhite(epPiece) && epPiece != Piece.Empty)
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: epPiece, enPassantCaptureFlag: true));
+                        }
+                    }
+                }
+
+                // 2. Capture Right (von Schwarz aus gesehen, also SE - Direction 3)
+                // SE (Index 3) bedeutet index - width + 1
+                if (distToEdge[squareIndexOffset + 3] > 0)
+                {
+                    int targetSq = down + 1;
+                    byte targetPiece = boardArray[targetSq];
+
+                    if (targetPiece != Piece.Inactive && targetPiece != Piece.Empty)
+                    {
+                        if (IsPieceWhite(targetPiece))
+                        {
+                            if (targetSq < width)
+                                GeneratePromotionMoves(square, targetSq, currentPiece, false, moves, capturedPiece: targetPiece);
+                            else
+                                moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: targetPiece));
+                        }
+                    }
+                    // En Passant
+                    else if (targetSq == board.enPassantTargetSquare)
+                    {
+                        byte epPiece = boardArray[targetSq + width];
+                        if (IsPieceWhite(epPiece) && epPiece != Piece.Empty)
+                        {
+                            moves.Add(new Move((ushort)square, (ushort)targetSq, currentPiece, capturedPiece: epPiece, enPassantCaptureFlag: true));
+                        }
+                    }
+                }
             }
         }
 
@@ -550,7 +837,7 @@ namespace uncy.model.boardAlt
             }
         }
 
-        private static void GeneratePseudoMovesForKnight(int square, Board board, List<Move> moves)
+        private static void GeneratePseudoMovesForKnightOLD(int square, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
             bool isWhitePiece = IsPieceWhite(currentPiece);
@@ -613,7 +900,52 @@ namespace uncy.model.boardAlt
 
         }
 
-        private static void GeneratePseudoMovesForRook(int square, Board board, List<Move> moves)
+        private static void GeneratePseudoMovesForKnight(int square, Board board, List<Move> moves)
+        {
+            // Lokale Referenzen für Speed (vermeidet Property-Access Overhead)
+            var boardArray = board.board;
+            var kMoves = tables.knightMoves; // Das Array mit den Ziel-Indizes
+
+            // Startindex und Länge aus den LUTs holen
+            int startIndex = tables.knightMoveStartIndex[square];
+            int count = tables.knightMoveCount[square];
+            int endIndex = startIndex + count;
+
+            byte currentPiece = boardArray[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece);
+
+            // Iteriere direkt über die vorberechneten Ziel-Felder
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                // Wir lesen den absoluten Index des Zielfeldes aus dem LUT
+                // (Cast nach int, da Array-Index int erwartet)
+                int nextSquare = (int)kMoves[i];
+
+                // Bounds-Check entfällt, da kMoves nur valide Indizes enthält.
+
+                byte targetPiece = boardArray[nextSquare];
+
+                // 1. Check: Ist das Feld inaktiv (Loch im Brett)?
+                if (targetPiece == Piece.Inactive) continue;
+
+                // 2. Logik für Zug oder Schlag
+                if (targetPiece == Piece.Empty)
+                {
+                    moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece));
+                }
+                else
+                {
+                    // Wenn eine Figur drauf steht: Prüfen ob Gegner
+                    bool isTargetWhite = IsPieceWhite(targetPiece);
+                    if (isWhitePiece != isTargetWhite)
+                    {
+                        moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece, capturedPiece: targetPiece));
+                    }
+                }
+            }
+        }
+
+        private static void GeneratePseudoMovesForRookOLD(int square, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
             int fileSize = board.dimensionsOfBoard.Item1;
@@ -637,7 +969,14 @@ namespace uncy.model.boardAlt
             GenerateSlidingMoves(square, dSquares, board, moves);
         }
 
-        private static void GeneratePseudoMovesForBishop(int square, Board board, List<Move> moves)
+        private static void GeneratePseudoMovesForRook(int square, Board board, List<Move> moves)
+        {
+            // Rook nutzt die Richtungen: N(0), E(2), S(4), W(6).
+            // Start bei Index 0, Schrittweite 2.
+            GenerateSlidingMoves(square, board, moves, 0, 2);
+        }
+
+        private static void GeneratePseudoMovesForBishopOLD(int square, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
             int fileSize = board.dimensionsOfBoard.Item1;
@@ -660,7 +999,14 @@ namespace uncy.model.boardAlt
             GenerateSlidingMoves(square, dSquares, board, moves);
         }
 
-        private static void GeneratePseudoMovesForQueen(int square, Board board, List<Move> moves)
+        public static void GeneratePseudoMovesForBishop(int square, Board board, List<Move> moves)
+        {
+            // Bishop nutzt die Richtungen: NE(1), SE(3), SW(5), NW(7).
+            // Start bei Index 1, Schrittweite 2.
+            GenerateSlidingMoves(square, board, moves, 1, 2);
+        }
+
+        private static void GeneratePseudoMovesForQueenOLD(int square, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
             int fileSize = board.dimensionsOfBoard.Item1;
@@ -685,11 +1031,16 @@ namespace uncy.model.boardAlt
 
         }
 
+        public static void GeneratePseudoMovesForQueen(int square, Board board, List<Move> moves)
+        {
+            // Queen nutzt alle Richtungen 0 bis 7.
+            // Start bei Index 0, Schrittweite 1.
+            GenerateSlidingMoves(square, board, moves, 0, 1);
+        }
 
         private static void GenerateSlidingMoves(int square, List<int> dSquares, Board board, List<Move> moves)
         {
             byte currentPiece = board.board[square];
-
             bool isWhitePiece = IsPieceWhite(currentPiece);
 
             for (int i = 0; i < dSquares.Count; i++)
@@ -697,7 +1048,6 @@ namespace uncy.model.boardAlt
                 for (int step = 1; step < 32; step++) // 32 because of the maximum technical board size
                 {
                     int nextSquare = square + dSquares[i] * step;
-                    
 
                     if (nextSquare < 0 || nextSquare >= board.boardSize) break; // if point is outside of specific board dimensions
 
@@ -724,6 +1074,72 @@ namespace uncy.model.boardAlt
                     //if ((pos == 0 || pos == 7) && (square - nextSquare) % board.boardSize == 0) break;
                     if ((pos == 0 || pos == 7) && !(step == 0 || (pos == square % board.dimensionsOfBoard.Item1))) // second condition checks for case where rook/queen is moving vertically on the right or left bounds
                     {
+                        break;
+                    }
+                }
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void GenerateSlidingMoves(int square, Board board, List<Move> moves, int startDirIndex, int stepDir)
+        {
+            byte currentPiece = board.board[square];
+            bool isWhitePiece = IsPieceWhite(currentPiece); // Dein existierender Helper
+
+            // Lokale Kopien der Arrays für schnelleren Zugriff (Micro-Optimization in C#)
+            var offsets = tables.directionOffsets;
+            var distToEdge = tables.squaresToEdge;
+            var boardArray = board.board;
+
+            // Wir berechnen den Start-Offset für das squaresToEdge Array einmalig.
+            // Das Array ist flach (1D): [Square 0 Dir 0, Square 0 Dir 1, ... Square 1 Dir 0 ...]
+            // Daher: square * 8.
+            int squareIndexOffset = square * 8;
+
+            // Äußere Schleife: Iteriert durch die Richtungen (z.B. N, E, S, W für Turm)
+            // Wir nutzen hier feste Inkremente (stepDir), um 'if'-Checks zu vermeiden.
+            for (int dirIndex = startDirIndex; dirIndex < 8; dirIndex += stepDir)
+            {
+                int directionOffset = offsets[dirIndex];
+
+                // Hier ist der enorme Vorteil: Wir wissen sofort, wie weit wir laufen dürfen.
+                // Kein "if nextSquare < 0" mehr nötig.
+                int maxSteps = distToEdge[squareIndexOffset + dirIndex];
+
+                int currentTargetSquare = square;
+
+                // Innere Schleife: Läuft die Linie entlang ("Ray casting")
+                for (int i = 0; i < maxSteps; i++)
+                {
+                    currentTargetSquare += directionOffset; // Addition ist sehr schnell
+
+                    byte targetPiece = boardArray[currentTargetSquare];
+
+                    // 1. Feld ist leer
+                    if (targetPiece == Piece.Empty)
+                    {
+                        moves.Add(new Move((ushort)square, (ushort)currentTargetSquare, currentPiece));
+                    }
+                    // 2. Feld ist besetzt
+                    else
+                    {
+                        // Wichtig: Wir müssen prüfen, ob es eine eigene oder gegnerische Figur ist.
+                        // Hinweis: Falls du 'Piece.Inactive' (für Off-Board Sentinels) nutzt, 
+                        // wird dies durch 'maxSteps' theoretisch schon verhindert, 
+                        // aber der Check schadet nicht, falls die Logik auch blocker enthält.
+
+                        if (targetPiece != Piece.Inactive)
+                        {
+                            bool isTargetWhite = IsPieceWhite(targetPiece);
+
+                            // Wenn Farben ungleich sind -> Schlagzug (Capture)
+                            if (isWhitePiece != isTargetWhite)
+                            {
+                                moves.Add(new Move((ushort)square, (ushort)currentTargetSquare, currentPiece, capturedPiece: targetPiece));
+                            }
+                        }
+
+                        // Egal ob eigene oder gegnerische Figur: Hier ist der Weg zu Ende.
                         break;
                     }
                 }
