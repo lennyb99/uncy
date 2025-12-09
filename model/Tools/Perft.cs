@@ -67,33 +67,161 @@ namespace uncy.model.Tools
             return nodes;
         }
 
-        public static void PerftDivide(int depth, Board board)
+        public static void PerftDivide(int depth, Board board, bool verbose = true)
         {
-            Console.WriteLine($"\n--- Perft Divide for Depth {depth} ---");
+            if (verbose)
+                Console.WriteLine($"\n--- Perft Divide for Depth {depth} ---");
+
             ulong total = 0;
 
             reusableMoveList.Clear();
             MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, reusableMoveList);
 
-            
+            // OPTIMIERT: Sortiere nur wenn verbose=true (für Ausgabe)
+            // Wenn verbose=false, nutze direkt das Array ohne Sortierung
+            Move[] movesToIterate;
+            if (verbose)
+            {
+                // Sortiere nach fromSquare + toSquare (int-Vergleich) statt String!
+                movesToIterate = reusableMoveList
+                    .OrderBy(m => (m.fromSquare << 16) | m.toSquare) // Kombiniere beide Squares in einem int
+                    .ToArray();
+            }
+            else
+            {
+                // Keine Sortierung nötig - direkt verwenden
+                movesToIterate = reusableMoveList.ToArray();
+            }
 
-            var sortedMoves = reusableMoveList.OrderBy(m => m.ToString()).ToList();
-            foreach (Move m in sortedMoves)
+            foreach (Move m in movesToIterate)
             {
                 if (!board.MakeMove(m, out Undo undo))
                 {
                     continue;
                 }
-                path.Add(m);
-                ulong subNodes = Run_Perft(depth - 1, board);
+
+                // Nutze Fast-Version wenn nicht verbose (schneller)
+                // Wenn verbose, nutze normale Version für path-Tracking (falls DEBUG aktiviert)
+                ulong subNodes = verbose ? Run_Perft(depth - 1, board) : Run_PerftFast(depth - 1, board);
 
                 board.UnmakeMove(m, undo);
 
-                path.RemoveAt(path.Count - 1);
-                Console.WriteLine($"{board.GiveMoveAbbreviation(m)}: {subNodes}");
+                if (verbose)
+                {
+                    // Nur wenn verbose, rufe GiveMoveAbbreviation auf
+                    Console.WriteLine($"{board.GiveMoveAbbreviation(m)}: {subNodes}");
+                }
+
                 total += subNodes;
             }
-            Console.WriteLine($"\nTotal nodes for depth {depth}: {total}");
+
+            if (verbose)
+                Console.WriteLine($"\nTotal nodes for depth {depth}: {total}");
+        }
+
+        /// <summary>
+        /// Optimierte Version von Run_Perft ohne DEBUG-Checks und ohne path-Tracking.
+        /// Viel schneller für Performance-Tests.
+        /// </summary>
+        public static ulong Run_PerftFast(int depth, Board board)
+        {
+            if (depth == 0)
+                return 1;
+
+            ulong nodes = 0;
+            reusableMoveList.Clear();
+            MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, reusableMoveList);
+            var movesToIterate = reusableMoveList.ToArray();
+
+            foreach (Move move in movesToIterate)
+            {
+                if (!board.MakeMove(move, out Undo undo))
+                    continue;
+
+                nodes += Run_PerftFast(depth - 1, board);
+                board.UnmakeMove(move, undo);
+            }
+
+            return nodes;
+        }
+
+        /// <summary>
+        /// Minimalste Version - nur für maximale Performance.
+        /// Keine path-Tracking, keine DEBUG-Checks, keine ToArray() (nutzt direkt die List).
+        /// </summary>
+        public static ulong Run_PerftMinimal(int depth, Board board)
+        {
+            if (depth == 0)
+                return 1;
+
+            ulong nodes = 0;
+            reusableMoveList.Clear();
+            MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, reusableMoveList);
+
+            // Direkt über die List iterieren statt ToArray() - spart eine Allokation
+            for (int i = 0; i < reusableMoveList.Count; i++)
+            {
+                Move move = reusableMoveList[i];
+                if (!board.MakeMove(move, out Undo undo))
+                    continue;
+
+                nodes += Run_PerftMinimal(depth - 1, board);
+                board.UnmakeMove(move, undo);
+            }
+
+            return nodes;
+        }
+
+        /// <summary>
+        /// PerftDivide mit Fast-Version (ohne DEBUG-Checks).
+        /// Schneller für Performance-Tests mit Ausgabe.
+        /// </summary>
+        public static void PerftDivideFast(int depth, Board board, bool verbose = true)
+        {
+            if (verbose)
+                Console.WriteLine($"\n--- Perft Divide Fast (Depth {depth}) ---");
+
+            ulong total = 0;
+            reusableMoveList.Clear();
+            MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, reusableMoveList);
+
+            Move[] movesToIterate;
+            if (verbose)
+            {
+                movesToIterate = reusableMoveList
+                    .OrderBy(m => (m.fromSquare << 16) | m.toSquare)
+                    .ToArray();
+            }
+            else
+            {
+                movesToIterate = reusableMoveList.ToArray();
+            }
+
+            foreach (Move m in movesToIterate)
+            {
+                if (!board.MakeMove(m, out Undo undo))
+                    continue;
+
+                ulong subNodes = Run_PerftFast(depth - 1, board);
+                board.UnmakeMove(m, undo);
+
+                if (verbose)
+                    Console.WriteLine($"{board.GiveMoveAbbreviation(m)}: {subNodes}");
+
+                total += subNodes;
+            }
+
+            if (verbose)
+                Console.WriteLine($"\nTotal nodes for depth {depth}: {total}");
+        }
+
+        /// <summary>
+        /// Einfache Perft-Methode ohne Divide - nur die Gesamtzahl der Nodes.
+        /// Schnellste Variante für reine Performance-Tests.
+        /// </summary>
+        public static ulong PerftSimple(int depth, Board board)
+        {
+            return Run_PerftFast(depth, board);
         }
     }
 }

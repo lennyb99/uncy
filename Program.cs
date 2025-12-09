@@ -33,178 +33,17 @@ class Program
         //board.PrintBoardToConsole();
 
         //Console.WriteLine(board.ToFen());
-        StartPerftDebug(board, 4);
 
+        // Original Perft (misst viel mehr als nur Move-Generation)
+        //StartPerftDebug(board, 5);
+        //StartSearch(board, 8);
 
-        
-
-        
-
-
-        //Stopwatch stopwatch = Stopwatch.StartNew();
-        //for (int i = 0; i < 4_000_000; i++)
-        //{a
-        //    board.ToFen();
-        //}
-        //stopwatch.Stop();
-        //Console.WriteLine(stopwatch.ToString());
-
-
-        //StartSearch(board, 6);
+        // Vergleich: Alle Perft-Varianten
+        //CompareAllPerftVariants(board, 5);
 
         //StartGrpcServer();
-
-        //int[] nums = new int[10000000];
-        //char[] chars = new char[9_000_000];
-        //for(int i = 0; i < nums.Length; i++)
-        //{
-        //    nums[i] = new Random().Next(0, 100);
-        //}
-        //for (int i = 0; i < chars.Length; i++)
-        //{
-        //    chars[i] = 'e';
-        //}
-        //Stopwatch sw = Stopwatch.StartNew();
-
-        //foreach (int num in nums)
-        //{
-        //    if(num == 27)
-        //    {
-
-        //    }
-        //}
-        //sw.Stop();
-        //Console.WriteLine(sw.ToString());
-
-        //sw.Reset();
-        //sw.Start();
-
-        //for (int i = 0; i < 9_500_000; i++) 
-        //{
-        //    if (board.board[1,1] == 'e' || board.board[1, 1] == 'x')
-        //    {
-
-        //    }
-        //}
-        //sw.Stop();
-        //Console.WriteLine(sw.ToString());
-
-        //Test();
-        //TestTwo();
     }
 
-    private static void Test()
-    {
-        // 1. Vorbereitung: Ein großes Array erstellen, das unsere "Millionen von Feldern" darstellt.
-        // Wir füllen es mit zufälligen Daten, damit der Compiler keine Muster erkennen kann.
-        const int operations = 9_500_000;
-        char[] data = new char[operations];
-        Random rand = new Random();
-        char[] pieces = { 'P', 'p', 'N', 'n', 'e', 'e', 'e', 'e', 'x' }; // Eine Auswahl an möglichen Werten
-
-        for (int i = 0; i < data.Length; i++)
-        {
-            data[i] = pieces[rand.Next(pieces.Length)];
-        }
-
-        Console.WriteLine("Test-Setup abgeschlossen. Starte den Benchmark...");
-        Console.WriteLine("-------------------------------------------------");
-
-        // 2. Der eigentliche Test: Wir durchlaufen das Array und führen eine einfache Prüfung durch.
-        // Das Ergebnis der Prüfung wird verwendet, um eine Zählervariable zu erhöhen.
-        long emptyOrInactiveCounter = 0;
-
-        Stopwatch sw = Stopwatch.StartNew();
-
-        for (int i = 0; i < data.Length; i++)
-        {
-            // Diese Prüfung ist der Kern des Tests.
-            // Sie greift jedes Mal auf eine NEUE Speicherstelle zu (data[i]).
-            if (data[i] == 'e' || data[i] == 'x')
-            {
-                // WICHTIG: Wir führen eine echte Operation durch.
-                // Dadurch kann der Compiler die Schleife nicht als "nutzlos" entfernen.
-                emptyOrInactiveCounter++;
-            }
-        }
-
-        sw.Stop();
-
-        // 3. Das Ergebnis ausgeben.
-        Console.WriteLine($"Zeit für 9.500.000 Prüfungen: {sw.ElapsedMilliseconds} ms");
-        Console.WriteLine($"Leere oder inaktive Felder gefunden: {emptyOrInactiveCounter:N0}");
-        Console.WriteLine("\nDieser Wert ist nicht mehr Null, weil der Compiler gezwungen wurde, die Arbeit tatsächlich auszuführen.");
-    }
-
-    private static void TestTwo()
-    {
-        // === VORBEREITUNG ===
-        // Wir brauchen eine Größe, die sowohl für 1D als auch für 2D funktioniert.
-        // Nehmen wir eine quadratische Größe, die ungefähr 9,5 Millionen Elementen entspricht.
-        // Wurzel aus 9,5 Mio ist ca. 3082.
-        const int size = 3082;
-        const int totalElements = size * size; // ca. 9.5 Millionen
-
-        // Zufällige Daten für beide Arrays erstellen
-        char[] data1D = new char[totalElements];
-        char[,] data2D = new char[size, size];
-        Random rand = new Random();
-        char[] pieces = { 'P', 'p', 'N', 'n', 'e', 'e', 'e', 'e', 'x' };
-
-        for (int i = 0; i < size; i++)
-        {
-            for (int j = 0; j < size; j++)
-            {
-                char piece = pieces[rand.Next(pieces.Length)];
-                data1D[i * size + j] = piece;
-                data2D[i, j] = piece;
-            }
-        }
-
-        Console.WriteLine($"Setup: {totalElements:N0} Elemente in einem 1D- und einem 2D-Array ({size}x{size}) erstellt.");
-        Console.WriteLine("Die Tests werden nun ausgeführt. Compiler-Optimierungen sind durch die Zähler verhindert.");
-        Console.WriteLine("--------------------------------------------------------------------------------------\n");
-
-        // === TEST 1: Eindimensionales Array (Mailbox-Stil) ===
-        long counter1D = 0;
-        Stopwatch sw1D = Stopwatch.StartNew();
-
-        for (int i = 0; i < totalElements; i++)
-        {
-            if (data1D[i] == 'e' || data1D[i] == 'x')
-            {
-                counter1D++;
-            }
-        }
-
-        sw1D.Stop();
-        Console.WriteLine($"Test 1 (1D-Array): {sw1D.ElapsedMilliseconds} ms");
-        Console.WriteLine($"Gefunden: {counter1D:N0} Elemente\n");
-
-        // === TEST 2: Zweidimensionales Array ===
-        long counter2D = 0;
-        Stopwatch sw2D = Stopwatch.StartNew();
-
-        for (int i = 0; i < size; i++)
-        {
-            for (int j = 0; j < size; j++)
-            {
-                if (data2D[i, j] == 'e' || data2D[i, j] == 'x')
-                {
-                    counter2D++;
-                }
-            }
-        }
-
-        sw2D.Stop();
-        Console.WriteLine($"Test 2 (2D-Array): {sw2D.ElapsedMilliseconds} ms");
-        Console.WriteLine($"Gefunden: {counter2D:N0} Elemente\n");
-
-        // === FAZIT ===
-        Console.WriteLine("--------------------------------------------------------------------------------------");
-        double difference = ((double)sw2D.ElapsedMilliseconds / sw1D.ElapsedMilliseconds - 1) * 100;
-        Console.WriteLine($"Fazit: Das 2D-Array war in diesem Test um ca. {difference:F1}% langsamer.");
-    }
 
     private static void StartSearch(Board board, int depth)
     {
@@ -227,12 +66,80 @@ class Program
         Console.WriteLine($"Starting PERFT (depth:{depth}) debugging:");
         var sw = Stopwatch.StartNew();
 
-        Perft.PerftDivide(depth, board);
+        Perft.PerftDivideFast(depth, board);
 
         sw.Stop();
         Console.WriteLine($"Duration of: {sw.Elapsed}");
         Console.WriteLine($"Dauer (ms): {sw.ElapsedMilliseconds} ms");
         Console.WriteLine("--------");
+    }
+
+
+    private static void CompareAllPerftVariants(Board board, int depth)
+    {
+        Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
+        Console.WriteLine("║         ALL PERFT VARIANTS COMPARISON                     ║");
+        Console.WriteLine("╚════════════════════════════════════════════════════════════╝");
+        Console.WriteLine($"\nTesting all Perft variants at depth {depth}...\n");
+
+        ulong expectedNodes = 4865609; // Bekannte Anzahl für Startposition depth 5
+
+        // 1. Run_Perft (mit DEBUG-Checks - langsam)
+        Console.WriteLine("1️⃣  Run_Perft (with DEBUG checks)...");
+        var sw1 = Stopwatch.StartNew();
+        ulong nodes1 = Perft.Run_Perft(depth, board);
+        sw1.Stop();
+        Console.WriteLine($"   Nodes: {nodes1:N0} | Time: {sw1.ElapsedMilliseconds} ms\n");
+
+        // 2. Run_PerftFast (ohne DEBUG-Checks)
+        Console.WriteLine("2️⃣  Run_PerftFast (without DEBUG checks)...");
+        var sw2 = Stopwatch.StartNew();
+        ulong nodes2 = Perft.Run_PerftFast(depth, board);
+        sw2.Stop();
+        Console.WriteLine($"   Nodes: {nodes2:N0} | Time: {sw2.ElapsedMilliseconds} ms\n");
+
+        // 3. Run_PerftMinimal (minimalste Version)
+        Console.WriteLine("3️⃣  Run_PerftMinimal (minimal overhead)...");
+        var sw3 = Stopwatch.StartNew();
+        ulong nodes3 = Perft.Run_PerftMinimal(depth, board);
+        sw3.Stop();
+        Console.WriteLine($"   Nodes: {nodes3:N0} | Time: {sw3.ElapsedMilliseconds} ms\n");
+
+        // 4. PerftSimple (Wrapper für Run_PerftFast)
+        Console.WriteLine("4️⃣  PerftSimple (alias for Run_PerftFast)...");
+        var sw4 = Stopwatch.StartNew();
+        ulong nodes4 = Perft.PerftSimple(depth, board);
+        sw4.Stop();
+        Console.WriteLine($"   Nodes: {nodes4:N0} | Time: {sw4.ElapsedMilliseconds} ms\n");
+
+        // Ergebnisse
+        Console.WriteLine("╔════════════════════════════════════════════════════════════╗");
+        Console.WriteLine("║                      RESULTS                              ║");
+        Console.WriteLine("╚════════════════════════════════════════════════════════════╝\n");
+
+        Console.WriteLine($"Expected nodes: {expectedNodes:N0}\n");
+
+        var results = new[]
+        {
+            ("Run_Perft (DEBUG)", sw1.ElapsedMilliseconds, nodes1),
+            ("Run_PerftFast", sw2.ElapsedMilliseconds, nodes2),
+            ("Run_PerftMinimal", sw3.ElapsedMilliseconds, nodes3),
+            ("PerftSimple", sw4.ElapsedMilliseconds, nodes4)
+        };
+
+        long fastestTime = results.Min(r => r.Item2);
+
+        foreach (var (name, time, nodes) in results)
+        {
+            double speedup = time / (double)fastestTime;
+            string status = nodes == expectedNodes ? "✅" : "❌";
+            Console.WriteLine($"{status} {name,-20} {time,8} ms | {speedup:F2}x | Nodes: {nodes:N0}");
+        }
+
+        Console.WriteLine($"\n💡 Empfehlung für Performance-Tests:");
+        Console.WriteLine($"   - Schnellste: Run_PerftFast oder PerftSimple");
+        Console.WriteLine($"   - Minimalster Overhead: Run_PerftMinimal");
+        Console.WriteLine($"   - Mit Divide-Ausgabe: PerftDivideFast(verbose: false)\n");
     }
 
     public static void StartGrpcServer()

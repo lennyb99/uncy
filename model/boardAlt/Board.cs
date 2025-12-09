@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics.Eventing.Reader;
 using System.Reflection.Metadata.Ecma335;
+using System.Runtime.CompilerServices;
 using System.Text;
 using uncy.board;
 
@@ -38,7 +39,7 @@ namespace uncy.model.boardAlt
         int whiteKingPos;
         int blackKingPos;
 
-        
+
 
         public Board(Fen fen)
         {
@@ -51,7 +52,7 @@ namespace uncy.model.boardAlt
             }
 
             InitializeBoard(dimensionsOfBoard.Item1, dimensionsOfBoard.Item2, fen);
-            
+
             // Create the zobrist keys for this board
             zobristKeys = new ZobristKeys(dimensionsOfBoard.Item1, dimensionsOfBoard.Item2);
             currentZobristKey = CreateZobristKeyFromCurrentBoard();
@@ -81,10 +82,11 @@ namespace uncy.model.boardAlt
         public ulong CreateZobristKeyFromCurrentBoard()
         {
             ulong zkey = 0;
-            for(int i = 0; i < board.Length;i++){
-                if (Piece.IsSquareActive(board[i]) && Piece.GetPieceType(board[i]) != Piece.Empty) 
+            for (int i = 0; i < board.Length; i++)
+            {
+                if (Piece.IsSquareActive(board[i]) && Piece.GetPieceType(board[i]) != Piece.Empty)
                 {
-                    zkey ^= zobristKeys.GetZobristKeyFromTable(i,board[i]);
+                    zkey ^= zobristKeys.GetZobristKeyFromTable(i, board[i]);
                 }
             }
 
@@ -134,7 +136,7 @@ namespace uncy.model.boardAlt
 
 
 
-            for (int rank = dimensionsOfBoard.Item2-1; rank >= 0; rank--)
+            for (int rank = dimensionsOfBoard.Item2 - 1; rank >= 0; rank--)
             {
                 Console.Write($"{rank + 1} | ");
 
@@ -149,7 +151,7 @@ namespace uncy.model.boardAlt
                     Console.Write($"{displayChar} ");
                 }
 
-                Console.WriteLine("|"); 
+                Console.WriteLine("|");
             }
 
 
@@ -226,7 +228,7 @@ namespace uncy.model.boardAlt
             {
                 for (int file = 0; file < dimensionsOfBoard.Item1; file++)
                 {
-                    int index = (rank * dimensionsOfBoard.Item1 + file)-1;
+                    int index = (rank * dimensionsOfBoard.Item1 + file) - 1;
                     Console.WriteLine(index);
                     Console.Write(Piece.GiveCharIdentifier(board[index]));
                 }
@@ -242,7 +244,7 @@ namespace uncy.model.boardAlt
             var fen = new StringBuilder();
 
             // 1. Brett-Teil (Reihen 8 → 1, Linien a → h)
-            for (int rank = dimensionsOfBoard.Item2-1; rank >= 0; rank--)
+            for (int rank = dimensionsOfBoard.Item2 - 1; rank >= 0; rank--)
             {
                 int emptyCount = 0;
 
@@ -253,7 +255,7 @@ namespace uncy.model.boardAlt
                     if (piece == Piece.Empty)                       // leeres Feld
                     {
                         emptyCount++;
-                        if(emptyCount >= 8)
+                        if (emptyCount >= 8)
                         {
                             fen.Append(emptyCount);
                             emptyCount = 0;
@@ -346,7 +348,7 @@ namespace uncy.model.boardAlt
                 return false;
             }
 
-            
+
             //zobristKeys.CheckForCorrectZobristKeys(this, move);
 
             return true;
@@ -382,8 +384,8 @@ namespace uncy.model.boardAlt
             // Set current square empty
             board[move.fromSquare] = Piece.Empty;
             currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.fromSquare, move.movedPiece);
-            
-            if(enPassantTargetSquare != -1) currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare % dimensionsOfBoard.Item1];
+
+            if (enPassantTargetSquare != -1) currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare % dimensionsOfBoard.Item1];
 
             // Update destination square
             board[move.toSquare] = move.movedPiece;
@@ -518,13 +520,13 @@ namespace uncy.model.boardAlt
                 {
                     whiteKingShortCastle = false;
                     whiteKingLongCastle = false;
-                    MovePieceWithoutMoveContext(shortCastleWhiteRookPos, move.toSquare+rookOffset);
+                    MovePieceWithoutMoveContext(shortCastleWhiteRookPos, move.toSquare + rookOffset);
                 }
                 else
                 {
                     blackKingShortCastle = false;
                     blackKingLongCastle = false;
-                    MovePieceWithoutMoveContext(shortCastleBlackRookPos, move.toSquare+rookOffset);
+                    MovePieceWithoutMoveContext(shortCastleBlackRookPos, move.toSquare + rookOffset);
                 }
             }
             else  // long castle
@@ -534,13 +536,13 @@ namespace uncy.model.boardAlt
                 {
                     whiteKingShortCastle = false;
                     whiteKingLongCastle = false;
-                    MovePieceWithoutMoveContext(longCastleWhiteRookPos, move.toSquare+rookOffset);
+                    MovePieceWithoutMoveContext(longCastleWhiteRookPos, move.toSquare + rookOffset);
                 }
                 else
                 {
                     blackKingShortCastle = false;
                     blackKingLongCastle = false;
-                    MovePieceWithoutMoveContext(longCastleBlackRookPos, move.toSquare+rookOffset);
+                    MovePieceWithoutMoveContext(longCastleBlackRookPos, move.toSquare + rookOffset);
                 }
             }
             currentZobristKey ^= zobristKeys.zobrist_castle[ReadCastlingRightsToInt()];
@@ -559,7 +561,7 @@ namespace uncy.model.boardAlt
             {
                 offset = 1;
             }
-            board[move.toSquare + offset*dimensionsOfBoard.Item1] = Piece.Empty;
+            board[move.toSquare + offset * dimensionsOfBoard.Item1] = Piece.Empty;
             currentZobristKey ^= zobristKeys.GetZobristKeyFromTable(move.toSquare + offset, move.capturedPiece);
         }
 
@@ -570,11 +572,11 @@ namespace uncy.model.boardAlt
                 if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
 
-                    MovePieceWithoutMoveContext(move.toSquare -1, shortCastleWhiteRookPos);
+                    MovePieceWithoutMoveContext(move.toSquare - 1, shortCastleWhiteRookPos);
                 }
                 else
                 {
-                    MovePieceWithoutMoveContext(move.toSquare -1, shortCastleBlackRookPos);
+                    MovePieceWithoutMoveContext(move.toSquare - 1, shortCastleBlackRookPos);
                 }
             }
             else
@@ -582,7 +584,7 @@ namespace uncy.model.boardAlt
                 if (Piece.IsColor(move.movedPiece, Piece.White))
                 {
 
-                    MovePieceWithoutMoveContext(move.toSquare +1, longCastleWhiteRookPos);
+                    MovePieceWithoutMoveContext(move.toSquare + 1, longCastleWhiteRookPos);
                 }
                 else
                 {
@@ -604,11 +606,11 @@ namespace uncy.model.boardAlt
         {
             if (Piece.IsColor(move.movedPiece, Piece.White))
             {
-                board[move.toSquare - (dimensionsOfBoard.Item1)] = Piece.Pawn+Piece.Black;
+                board[move.toSquare - (dimensionsOfBoard.Item1)] = Piece.Pawn + Piece.Black;
             }
             else
             {
-                board[move.toSquare + (dimensionsOfBoard.Item1)] = Piece.Pawn+Piece.White;
+                board[move.toSquare + (dimensionsOfBoard.Item1)] = Piece.Pawn + Piece.White;
             }
 
             board[move.toSquare] = Piece.Empty;
@@ -784,6 +786,13 @@ namespace uncy.model.boardAlt
          */
         public bool IsSquareAttackedByColor(bool white, int square)
         {
+            // Nutze die optimierte Version mit Lookup-Tables
+            return MoveGenerator.IsSquareAttackedByColor(this, white, square);
+        }
+
+        // OLD VERSION - wird nicht mehr verwendet, aber für Referenz behalten
+        private bool IsSquareAttackedByColorOLD(bool white, int square)
+        {
             int fileSize = dimensionsOfBoard.Item1;
 
             List<int> dSquareKnight = new List<int>();
@@ -813,8 +822,8 @@ namespace uncy.model.boardAlt
                     break;
             }
 
-            
-            
+
+
             List<int> dSquaresKing = new List<int>();
             switch (square % fileSize)
             {
@@ -842,7 +851,8 @@ namespace uncy.model.boardAlt
                 {
                     pieces[i] += Piece.White;
                 }
-            }else
+            }
+            else
             {
                 for (int i = 0; i < pieces.Length; i++)
                 {
@@ -868,7 +878,7 @@ namespace uncy.model.boardAlt
             for (int i = 0; i < dSquareKnight.Count; i++)
             {
                 int nextSquare = square + dSquareKnight[i];
-                
+
                 if (nextSquare >= boardSize || nextSquare < 0) continue;
                 if (board[nextSquare] == pieces[1])
                 {
@@ -882,8 +892,9 @@ namespace uncy.model.boardAlt
                 List<int> dSquarePawn = new List<int>();
                 if (square % fileSize == 0)
                 {
-                    dSquarePawn.Add(-fileSize+1);
-                }else if(square % fileSize == 7)
+                    dSquarePawn.Add(-fileSize + 1);
+                }
+                else if (square % fileSize == 7)
                 {
                     dSquarePawn.Add(-fileSize - 1);
                 }
@@ -896,7 +907,7 @@ namespace uncy.model.boardAlt
                 for (int i = 0; i < dSquarePawn.Count; i++)
                 {
                     int nextSquare = square + dSquarePawn[i];
-                    
+
                     if (nextSquare >= boardSize || nextSquare < 0) continue;
 
                     if (board[nextSquare] == pieces[2])
@@ -1018,7 +1029,7 @@ namespace uncy.model.boardAlt
                         else
                         {
                             continue;
-                        }   
+                        }
                     }
                     if (targetPiece == pieces[3] || targetPiece == pieces[5])
                     {
@@ -1041,7 +1052,7 @@ namespace uncy.model.boardAlt
         {
             for (int i = board.Length - 1; i >= 0; i--)
             {
-                if (board[i] == Piece.White+Piece.King)
+                if (board[i] == Piece.White + Piece.King)
                 {
                     Console.WriteLine($"Found white king on square: {i}");
                     return i;
@@ -1054,7 +1065,7 @@ namespace uncy.model.boardAlt
         {
             for (int i = 0; i < board.GetLength(0); i++)
             {
-                if (board[i] == Piece.Black+ Piece.King)
+                if (board[i] == Piece.Black + Piece.King)
                 {
                     Console.WriteLine($"Found black king on square: {i}");
                     return i;
@@ -1076,7 +1087,7 @@ namespace uncy.model.boardAlt
         {
             if (board == null) return;
 
-            for (int i = whiteKingPos+1; i <= whiteKingPos+stepUntilRightBoardBorder(whiteKingPos); i++) // Looking for the short castle white rook
+            for (int i = whiteKingPos + 1; i <= whiteKingPos + stepUntilRightBoardBorder(whiteKingPos); i++) // Looking for the short castle white rook
             {
                 if (Piece.IsPieceAWhiteRook(board[i]) && whiteKingShortCastle == true)
                 {
@@ -1094,7 +1105,7 @@ namespace uncy.model.boardAlt
             }
 
 
-            for (int i = whiteKingPos-1; i >= whiteKingPos-stepsUntilLeftBoardBorder(whiteKingPos); i--) // Looking for the long castle white rook
+            for (int i = whiteKingPos - 1; i >= whiteKingPos - stepsUntilLeftBoardBorder(whiteKingPos); i--) // Looking for the long castle white rook
             {
                 if (Piece.IsPieceAWhiteRook(board[i]) && whiteKingLongCastle == true)
                 {
@@ -1112,7 +1123,7 @@ namespace uncy.model.boardAlt
             }
 
 
-            for (int i = blackKingPos+1; i <= blackKingPos+stepUntilRightBoardBorder(blackKingPos); i++) // Looking for the short castle black rook
+            for (int i = blackKingPos + 1; i <= blackKingPos + stepUntilRightBoardBorder(blackKingPos); i++) // Looking for the short castle black rook
             {
                 if (Piece.IsPieceABlackRook(board[i]) && blackKingShortCastle == true)
                 {
@@ -1130,7 +1141,7 @@ namespace uncy.model.boardAlt
             }
 
 
-            for (int i = blackKingPos-1; i >= blackKingPos-stepsUntilLeftBoardBorder(blackKingPos); i--) // Looking for the long castle black rook
+            for (int i = blackKingPos - 1; i >= blackKingPos - stepsUntilLeftBoardBorder(blackKingPos); i--) // Looking for the long castle black rook
             {
                 if (Piece.IsPieceABlackRook(board[i]) && blackKingLongCastle == true)
                 {
@@ -1174,7 +1185,7 @@ namespace uncy.model.boardAlt
         /*
          * a1 = (file=0, rank=0)
          */
-        public (int,int) GetFileAndRankFromSquare(int square)
+        public (int, int) GetFileAndRankFromSquare(int square)
         {
             int rank = square / dimensionsOfBoard.Item1;
             int file = square % dimensionsOfBoard.Item1;
@@ -1184,23 +1195,24 @@ namespace uncy.model.boardAlt
         /*
          * a1 = (file=0, rank=0)
          */
-        public int GetSquareFromFileAndRank(int file,int rank)
+        public int GetSquareFromFileAndRank(int file, int rank)
         {
             return rank * dimensionsOfBoard.Item1 + file;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public string GiveMoveAbbreviation(Move move)
         {
-            (int, int) fromFileRank = GetFileAndRankFromSquare(move.fromSquare);
-            (int, int) toFileRank = GetFileAndRankFromSquare(move.toSquare);
+            // Optimiert: Direkte Berechnung statt Tuple-Allokation
+            int fileSize = dimensionsOfBoard.Item1;
 
-            char fromFile = (char)('a' + fromFileRank.Item1);
-            int fromRank = fromFileRank.Item2+1;
+            int fromRank = move.fromSquare / fileSize;
+            int fromFile = move.fromSquare % fileSize;
+            int toRank = move.toSquare / fileSize;
+            int toFile = move.toSquare % fileSize;
 
-            char toFile = (char)('a' +  toFileRank.Item1);
-            int toRank = toFileRank.Item2+1;
-
-            return $"{fromFile}{fromRank}{toFile}{toRank}";
+            // String-Builder wäre schneller, aber für kurze Strings ist Interpolation OK
+            return $"{(char)('a' + fromFile)}{fromRank + 1}{(char)('a' + toFile)}{toRank + 1}";
         }
     }
 }

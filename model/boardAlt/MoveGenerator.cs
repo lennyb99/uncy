@@ -104,9 +104,17 @@ namespace uncy.model.boardAlt
     {
         private static MoveLookUpTables tables;
 
+        // Flag für Benchmarking: false = NEW (LUT), true = OLD
+        private static bool useOldMethods = false;
+
         public static void AssignTables(MoveLookUpTables lookUpTables)
         {
             tables = lookUpTables;
+        }
+
+        public static void SetUseOldMethods(bool useOld)
+        {
+            useOldMethods = useOld;
         }
 
         public static List<Move> GenerateLegalMoves(Board board)
@@ -116,52 +124,82 @@ namespace uncy.model.boardAlt
             List<Move> newMoves = new List<Move>();
             GeneratePseudoMoves(board, board.sideToMove, newMoves);
 
-            foreach (var move in newMoves) {
+            foreach (var move in newMoves)
+            {
                 if (!board.MakeMove(move, out Undo undo))
                     continue;
 
                 legalMoves.Add(move);
-                board.UnmakeMove(move, undo);   
+                board.UnmakeMove(move, undo);
             }
             return legalMoves;
         }
 
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void GeneratePseudoMoves(Board board, bool sideToMove, List<Move> moves)
         {
-            // Loop through each square
-            for (int i = 0; i < board.boardSize; i++)
-            {
-                if (board.board[i] == Piece.Inactive || board.board[i] == Piece.Empty) continue; // Empty square or Inactive square
+            // Lokale Referenzen für besseren Cache-Zugriff
+            var boardArray = board.board;
+            int boardSize = board.boardSize;
 
-                if (IsPieceWhite(board.board[i]) && sideToMove || !IsPieceWhite(board.board[i]) && !sideToMove) // Check if its turn for this piece to move 
+            // Loop through each square
+            for (int i = 0; i < boardSize; i++)
+            {
+                byte piece = boardArray[i];
+
+                // Skip empty or inactive squares
+                if (piece == Piece.Inactive || piece == Piece.Empty) continue;
+
+                // Optimierter Color-Check: Direkter Bit-Vergleich statt Methodenaufruf
+                bool isWhite = (piece & Piece.ColorMask) == Piece.White;
+                if ((isWhite && sideToMove) || (!isWhite && !sideToMove))
                 {
                     IdentifyPieceAndGeneratePseudoMoves(i, board, moves);
                 }
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void IdentifyPieceAndGeneratePseudoMoves(int square, Board board, List<Move> moves)
         {
             switch (Piece.GetPieceType(board.board[square]))
             {
                 case Piece.King:
-                    GeneratePseudoMovesForKing(square, board, moves);
+                    if (useOldMethods)
+                        GeneratePseudoMovesForKingOLD(square, board, moves);
+                    else
+                        GeneratePseudoMovesForKing(square, board, moves);
                     break;
                 case Piece.Queen:
-                    GeneratePseudoMovesForQueen(square, board, moves);
+                    if (useOldMethods)
+                        GeneratePseudoMovesForQueenOLD(square, board, moves);
+                    else
+                        GeneratePseudoMovesForQueen(square, board, moves);
                     break;
                 case Piece.Rook:
-                    GeneratePseudoMovesForRook(square, board, moves);
+                    if (useOldMethods)
+                        GeneratePseudoMovesForRookOLD(square, board, moves);
+                    else
+                        GeneratePseudoMovesForRook(square, board, moves);
                     break;
                 case Piece.Bishop:
-                    GeneratePseudoMovesForBishop(square, board, moves);
+                    if (useOldMethods)
+                        GeneratePseudoMovesForBishopOLD(square, board, moves);
+                    else
+                        GeneratePseudoMovesForBishop(square, board, moves);
                     break;
                 case Piece.Knight:
-                    GeneratePseudoMovesForKnight(square, board, moves);
+                    if (useOldMethods)
+                        GeneratePseudoMovesForKnightOLD(square, board, moves);
+                    else
+                        GeneratePseudoMovesForKnight(square, board, moves);
                     break;
                 case Piece.Pawn:
-                    GeneratePseudoMovesForPawn(square, board, moves);
+                    if (useOldMethods)
+                        GeneratePseudoMovesForPawnOLD(square, board, moves);
+                    else
+                        GeneratePseudoMovesForPawn(square, board, moves);
                     break;
                 default:
                     Console.WriteLine("Unidentified Piece found: " + board.board[square]);
@@ -194,12 +232,12 @@ namespace uncy.model.boardAlt
                     break;
             }
 
-            
+
 
             for (int i = 0; i < dSquares.Count; i++)
             {
                 int nextSquare = square + dSquares[i];
-                    
+
                 if (nextSquare < 0 || nextSquare > board.boardSize) continue; // if point is outside of specific board dimensions
 
 
@@ -210,7 +248,7 @@ namespace uncy.model.boardAlt
 
                 if (targetPiece == Piece.Empty) // Empty square
                 {
-                    moves.Add(new Move((ushort) square, (ushort) nextSquare, currentPiece));
+                    moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece));
                 }
                 else    // Piece on the square      
                 {
@@ -218,7 +256,7 @@ namespace uncy.model.boardAlt
 
                     if (isWhitePiece && !isTargetWhite || !isWhitePiece && isTargetWhite)
                     {
-                        moves.Add(new Move((ushort) square, (ushort) nextSquare, currentPiece, capturedPiece: targetPiece));
+                        moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece, capturedPiece: targetPiece));
                     }
                 }
             }
@@ -228,7 +266,7 @@ namespace uncy.model.boardAlt
             {
                 if (board.whiteKingShortCastle)
                 {
-                    for (int i = square+1; i <= square + board.stepUntilRightBoardBorder(square); i++)
+                    for (int i = square + 1; i <= square + board.stepUntilRightBoardBorder(square); i++)
                     {
                         byte nextPiece = board.board[i];
                         if (nextPiece == Piece.Empty)
@@ -237,14 +275,14 @@ namespace uncy.model.boardAlt
                         }
                         else if (Piece.IsPieceAWhiteRook(nextPiece))
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square+2), currentPiece, castlingMoveFlag: true));
+                            moves.Add(new Move((ushort)square, (ushort)(square + 2), currentPiece, castlingMoveFlag: true));
                         }
                         else break;
                     }
                 }
                 if (board.whiteKingLongCastle)
                 {
-                    for (int i = square-1; i >= square - board.stepsUntilLeftBoardBorder(square); i--)
+                    for (int i = square - 1; i >= square - board.stepsUntilLeftBoardBorder(square); i--)
                     {
                         byte nextPiece = board.board[i];
                         if (nextPiece == Piece.Empty)
@@ -253,7 +291,7 @@ namespace uncy.model.boardAlt
                         }
                         else if (Piece.IsPieceAWhiteRook(nextPiece))
                         {
-                            moves.Add(new Move((ushort) square, (ushort) (square-2), currentPiece, castlingMoveFlag: true));
+                            moves.Add(new Move((ushort)square, (ushort)(square - 2), currentPiece, castlingMoveFlag: true));
                         }
                         else break;
                     }
@@ -263,7 +301,7 @@ namespace uncy.model.boardAlt
             {
                 if (board.blackKingShortCastle)
                 {
-                    for (int i = square+1; i <= square + board.stepUntilRightBoardBorder(square); i++)
+                    for (int i = square + 1; i <= square + board.stepUntilRightBoardBorder(square); i++)
                     {
                         byte nextPiece = board.board[i];
                         if (nextPiece == Piece.Empty)
@@ -272,14 +310,14 @@ namespace uncy.model.boardAlt
                         }
                         else if (Piece.IsPieceABlackRook(nextPiece))
                         {
-                            moves.Add(new Move((ushort)(square), (ushort)(square+2), currentPiece, castlingMoveFlag: true));
+                            moves.Add(new Move((ushort)(square), (ushort)(square + 2), currentPiece, castlingMoveFlag: true));
                         }
                         else break;
                     }
                 }
                 if (board.blackKingLongCastle)
                 {
-                    for (int i = square-1; i >= square - board.stepsUntilLeftBoardBorder(square); i--)
+                    for (int i = square - 1; i >= square - board.stepsUntilLeftBoardBorder(square); i--)
                     {
                         byte nextPiece = board.board[i];
                         if (nextPiece == Piece.Empty)
@@ -288,7 +326,7 @@ namespace uncy.model.boardAlt
                         }
                         else if (Piece.IsPieceABlackRook(nextPiece))
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square-2), currentPiece, castlingMoveFlag: true));
+                            moves.Add(new Move((ushort)square, (ushort)(square - 2), currentPiece, castlingMoveFlag: true));
                         }
                         else break;
                     }
@@ -296,6 +334,7 @@ namespace uncy.model.boardAlt
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void GeneratePseudoMovesForKing(int square, Board board, List<Move> moves)
         {
             var boardArray = board.board;
@@ -347,6 +386,7 @@ namespace uncy.model.boardAlt
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CheckCastling(int kingSquare, Board board, List<Move> moves, byte kingPiece, bool isWhite, bool isShortParams)
         {
             int direction = isShortParams ? 1 : -1;
@@ -401,36 +441,36 @@ namespace uncy.model.boardAlt
             if (isWhitePiece)
             {
                 // One Square Push
-                if (!(square+fileSize >= board.boardSize)) // if point is inside of specific board dimensions
+                if (!(square + fileSize >= board.boardSize)) // if point is inside of specific board dimensions
                 {
-                    byte targetPiece = board.board[square+fileSize];
+                    byte targetPiece = board.board[square + fileSize];
                     if (targetPiece == Piece.Empty)
                     {
-                        if (board.IsSquareAtEndOfBoardForWhite(square+fileSize))
+                        if (board.IsSquareAtEndOfBoardForWhite(square + fileSize))
                         {
-                            GeneratePromotionMoves(square, square+fileSize, currentPiece, isWhitePiece, moves);
+                            GeneratePromotionMoves(square, square + fileSize, currentPiece, isWhitePiece, moves);
                         }
                         else
                         {
-                            moves.Add(new Move((ushort) square, (ushort) (square+fileSize), currentPiece)); // Add valid Move
+                            moves.Add(new Move((ushort)square, (ushort)(square + fileSize), currentPiece)); // Add valid Move
                         }
 
-                        
+
                         // Two Squares Push
                         if (((int)square / 8) == 1)
                         {
-                            if (!(square+fileSize*2 >= board.boardSize))
+                            if (!(square + fileSize * 2 >= board.boardSize))
                             {
-                                targetPiece = board.board[square + fileSize*2];
+                                targetPiece = board.board[square + fileSize * 2];
                                 if (targetPiece == Piece.Empty)
                                 {
-                                    if (board.IsSquareAtEndOfBoardForWhite(square+fileSize*2))
+                                    if (board.IsSquareAtEndOfBoardForWhite(square + fileSize * 2))
                                     {
-                                        GeneratePromotionMoves(square, square+fileSize*2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
+                                        GeneratePromotionMoves(square, square + fileSize * 2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
                                     }
                                     else
                                     {
-                                        moves.Add(new Move((ushort)square, (ushort)(square+fileSize*2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                        moves.Add(new Move((ushort)square, (ushort)(square + fileSize * 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
                                     }
                                 }
                             }
@@ -438,58 +478,59 @@ namespace uncy.model.boardAlt
                     }
                 }
 
-                    
+
 
                 // Hit Diagonal
                 // Left
-                if ((square + fileSize-1 < board.boardSize) && square % fileSize != 0)
+                if ((square + fileSize - 1 < board.boardSize) && square % fileSize != 0)
                 {
-                    byte targetPiece = board.board[square + fileSize-1];
+                    byte targetPiece = board.board[square + fileSize - 1];
 
                     if (board.enPassantTargetSquare == square + fileSize - 1)
                     {
-                        byte enPaTargetPiece = board.board[board.enPassantTargetSquare-fileSize];
+                        byte enPaTargetPiece = board.board[board.enPassantTargetSquare - fileSize];
                         if (!IsPieceWhite(enPaTargetPiece))
                         {
                             moves.Add((new Move((ushort)square, (ushort)board.enPassantTargetSquare, currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
                         }
                     }
 
-                    if (!IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square + fileSize-1)) // Checks if piece is black since this is code is executed for white Pawns
+                    if (!IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square + fileSize - 1)) // Checks if piece is black since this is code is executed for white Pawns
                     {
-                        if (board.IsSquareAtEndOfBoardForWhite(square+fileSize-1))
+                        if (board.IsSquareAtEndOfBoardForWhite(square + fileSize - 1))
                         {
-                            GeneratePromotionMoves(square, square+fileSize-1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                            GeneratePromotionMoves(square, square + fileSize - 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                         }
                         else
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square+fileSize-1), currentPiece, capturedPiece: targetPiece));
+                            moves.Add(new Move((ushort)square, (ushort)(square + fileSize - 1), currentPiece, capturedPiece: targetPiece));
                         }
                     }
                 }
 
                 // Right
-                if ((square + fileSize + 1 < board.boardSize) && square % fileSize != fileSize-1)
+                if ((square + fileSize + 1 < board.boardSize) && square % fileSize != fileSize - 1)
                 {
-                    byte targetPiece = board.board[square+fileSize+1];
+                    byte targetPiece = board.board[square + fileSize + 1];
 
                     if (board.enPassantTargetSquare == square + fileSize + 1)
                     {
                         byte enPaTargetPiece = board.board[board.enPassantTargetSquare - fileSize];
-                        if (!IsPieceWhite(enPaTargetPiece)) { 
+                        if (!IsPieceWhite(enPaTargetPiece))
+                        {
                             moves.Add((new Move((ushort)square, (ushort)board.enPassantTargetSquare, currentPiece, capturedPiece: enPaTargetPiece, enPassantCaptureFlag: true)));
                         }
                     }
 
-                    if (!IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square+fileSize+1)) // Checks if piece is black since this is code is executed for white Pawns
+                    if (!IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square + fileSize + 1)) // Checks if piece is black since this is code is executed for white Pawns
                     {
-                        if (board.IsSquareAtEndOfBoardForWhite(square + fileSize+1))
+                        if (board.IsSquareAtEndOfBoardForWhite(square + fileSize + 1))
                         {
-                            GeneratePromotionMoves(square, square+fileSize+1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                            GeneratePromotionMoves(square, square + fileSize + 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                         }
                         else
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square+fileSize+1), currentPiece, capturedPiece: targetPiece));
+                            moves.Add(new Move((ushort)square, (ushort)(square + fileSize + 1), currentPiece, capturedPiece: targetPiece));
                         }
                     }
                 }
@@ -499,46 +540,46 @@ namespace uncy.model.boardAlt
                 // One Square Push
                 if (!(square - fileSize < 0)) // if point is inside of specific board dimensions
                 {
-                    byte targetPiece = board.board[square-fileSize];
+                    byte targetPiece = board.board[square - fileSize];
                     if (targetPiece == Piece.Empty)
                     {
-                        if (board.IsSquareAtEndOfBoardForBlack(square-fileSize))
+                        if (board.IsSquareAtEndOfBoardForBlack(square - fileSize))
                         {
-                            GeneratePromotionMoves(square, square-fileSize, currentPiece, isWhitePiece, moves);
+                            GeneratePromotionMoves(square, square - fileSize, currentPiece, isWhitePiece, moves);
                         }
                         else
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square-fileSize), currentPiece)); // Add valid Move
+                            moves.Add(new Move((ushort)square, (ushort)(square - fileSize), currentPiece)); // Add valid Move
                         }
                         // Two Squares Push
                         if (square / 8 == 6)
                         {
-                            if (!(square - fileSize*2 < 0))
+                            if (!(square - fileSize * 2 < 0))
                             {
-                                targetPiece = board.board[square - fileSize*2];
+                                targetPiece = board.board[square - fileSize * 2];
                                 if (targetPiece == Piece.Empty)
                                 {
-                                    if (board.IsSquareAtEndOfBoardForBlack(square-fileSize*2))
+                                    if (board.IsSquareAtEndOfBoardForBlack(square - fileSize * 2))
                                     {
-                                        GeneratePromotionMoves(square, square-fileSize*2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
+                                        GeneratePromotionMoves(square, square - fileSize * 2, currentPiece, isWhitePiece, moves, doublePushPawnMove: true);
                                     }
                                     else
                                     {
-                                        moves.Add(new Move((ushort)square, (ushort)(square-fileSize*2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
+                                        moves.Add(new Move((ushort)square, (ushort)(square - fileSize * 2), currentPiece, doubleSquarePushFlag: true)); // Add valid Move
                                     }
                                 }
                             }
                         }
-                    } 
+                    }
                 }
 
-                    
+
 
                 // Hit Diagonal
                 // Left
                 if ((square - fileSize - 1 >= 0) && square % fileSize != 0)
                 {
-                    byte targetPiece = board.board[square-fileSize-1];
+                    byte targetPiece = board.board[square - fileSize - 1];
 
                     if (board.enPassantTargetSquare == square - fileSize - 1)
                     {
@@ -549,15 +590,15 @@ namespace uncy.model.boardAlt
                         }
                     }
 
-                    if (IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square-fileSize-1)) // Checks if piece is white since this is code is executed for black Pawns
+                    if (IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square - fileSize - 1)) // Checks if piece is white since this is code is executed for black Pawns
                     {
-                        if (board.IsSquareAtEndOfBoardForBlack(square-fileSize-1))
+                        if (board.IsSquareAtEndOfBoardForBlack(square - fileSize - 1))
                         {
-                            GeneratePromotionMoves(square, square-fileSize-1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                            GeneratePromotionMoves(square, square - fileSize - 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                         }
                         else
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square-fileSize-1), currentPiece, capturedPiece: targetPiece));
+                            moves.Add(new Move((ushort)square, (ushort)(square - fileSize - 1), currentPiece, capturedPiece: targetPiece));
                         }
                     }
                 }
@@ -565,7 +606,7 @@ namespace uncy.model.boardAlt
                 // Right
                 if ((square - fileSize + 1 >= 0) && square % fileSize != fileSize - 1)
                 {
-                    byte targetPiece = board.board[square-fileSize+1];
+                    byte targetPiece = board.board[square - fileSize + 1];
 
                     if (board.enPassantTargetSquare == square - fileSize + 1)
                     {
@@ -576,21 +617,22 @@ namespace uncy.model.boardAlt
                         }
                     }
 
-                    if (IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square-fileSize+1)) // Checks if piece is white since this is code is executed for black Pawns
+                    if (IsPieceWhite(targetPiece) && board.IsSquareOccupiedByPiece(square - fileSize + 1)) // Checks if piece is white since this is code is executed for black Pawns
                     {
                         if (board.IsSquareAtEndOfBoardForBlack(square - fileSize + 1))
                         {
-                            GeneratePromotionMoves(square, square-fileSize+1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
+                            GeneratePromotionMoves(square, square - fileSize + 1, currentPiece, isWhitePiece, moves, capturedPiece: targetPiece);
                         }
                         else
                         {
-                            moves.Add(new Move((ushort)square, (ushort)(square-fileSize+1), currentPiece, capturedPiece: targetPiece));
+                            moves.Add(new Move((ushort)square, (ushort)(square - fileSize + 1), currentPiece, capturedPiece: targetPiece));
                         }
                     }
                 }
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void GeneratePseudoMovesForPawn(int square, Board board, List<Move> moves)
         {
             // 1. Lokale Referenzen für Speed & Lesbarkeit
@@ -803,10 +845,11 @@ namespace uncy.model.boardAlt
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void GeneratePromotionMoves(int fromSquare, int toSquare, byte currentPiece, bool isWhitePiece, List<Move> moves, byte capturedPiece = Piece.Empty, bool doublePushPawnMove = false)
         {
 
-            byte[] pieces = { Piece.Queen, Piece.Rook, Piece.Bishop, Piece.Knight};
+            byte[] pieces = { Piece.Queen, Piece.Rook, Piece.Bishop, Piece.Knight };
             if (isWhitePiece)
             {
                 for (int i = 0; i < pieces.Length; i++)
@@ -858,7 +901,7 @@ namespace uncy.model.boardAlt
                     dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1 });
                     break;
                 case var n when n == fileSize - 2:
-                    dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1 , 2 * fileSize + 1, -2 * fileSize + 1 });
+                    dSquareKnight.AddRange(new int[] { -2 * fileSize - 1, -fileSize - 2, fileSize - 2, 2 * fileSize - 1, 2 * fileSize + 1, -2 * fileSize + 1 });
                     break;
                 default:
                     dSquareKnight.AddRange(new int[] {2*fileSize + 1, // NNE
@@ -900,6 +943,7 @@ namespace uncy.model.boardAlt
 
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void GeneratePseudoMovesForKnight(int square, Board board, List<Move> moves)
         {
             // Lokale Referenzen für Speed (vermeidet Property-Access Overhead)
@@ -949,10 +993,10 @@ namespace uncy.model.boardAlt
         {
             byte currentPiece = board.board[square];
             int fileSize = board.dimensionsOfBoard.Item1;
-            
+
             List<int> dSquares = new List<int>();
 
-            switch(square % fileSize)
+            switch (square % fileSize)
             {
                 case 0:
                     dSquares.AddRange(new int[] { fileSize, 1, -fileSize });
@@ -969,6 +1013,7 @@ namespace uncy.model.boardAlt
             GenerateSlidingMoves(square, dSquares, board, moves);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void GeneratePseudoMovesForRook(int square, Board board, List<Move> moves)
         {
             // Rook nutzt die Richtungen: N(0), E(2), S(4), W(6).
@@ -999,6 +1044,7 @@ namespace uncy.model.boardAlt
             GenerateSlidingMoves(square, dSquares, board, moves);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void GeneratePseudoMovesForBishop(int square, Board board, List<Move> moves)
         {
             // Bishop nutzt die Richtungen: NE(1), SE(3), SW(5), NW(7).
@@ -1019,7 +1065,7 @@ namespace uncy.model.boardAlt
                     dSquares.AddRange(new int[] { fileSize, 1, -fileSize, fileSize + 1, -fileSize + 1 });
                     break;
                 case var n when n == fileSize - 1:
-                    dSquares.AddRange(new int[] { fileSize, -fileSize, -fileSize-1, fileSize-1, -1 });
+                    dSquares.AddRange(new int[] { fileSize, -fileSize, -fileSize - 1, fileSize - 1, -1 });
                     break;
                 default:
                     dSquares.AddRange(new int[] { fileSize, 1, -fileSize, -1, fileSize + 1, -fileSize + 1, -fileSize - 1, fileSize - 1 });
@@ -1031,6 +1077,7 @@ namespace uncy.model.boardAlt
 
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void GeneratePseudoMovesForQueen(int square, Board board, List<Move> moves)
         {
             // Queen nutzt alle Richtungen 0 bis 7.
@@ -1057,7 +1104,7 @@ namespace uncy.model.boardAlt
 
                     if (targetPiece == Piece.Empty) // Empty square
                     {
-                        moves.Add(new Move((ushort) square, (ushort)nextSquare, currentPiece));
+                        moves.Add(new Move((ushort)square, (ushort)nextSquare, currentPiece));
                     }
                     else    // Piece on the square      
                     {
@@ -1146,9 +1193,154 @@ namespace uncy.model.boardAlt
             }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static bool IsPieceWhite(byte b)
         {
-            if (Piece.White == Piece.GetColor(b)) return true;
+            return (b & Piece.ColorMask) == Piece.White;
+        }
+
+        /// <summary>
+        /// Optimierte Version von IsSquareAttackedByColor, die Lookup-Tables nutzt.
+        /// Prüft, ob ein Feld von einer bestimmten Farbe angegriffen wird.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsSquareAttackedByColor(Board board, bool white, int square)
+        {
+            if (tables == null) return false; // Fallback falls Tables nicht initialisiert
+
+            var boardArray = board.board;
+            byte targetKing = white ? (byte)(Piece.King + Piece.White) : (byte)(Piece.King + Piece.Black);
+            byte targetKnight = white ? (byte)(Piece.Knight + Piece.White) : (byte)(Piece.Knight + Piece.Black);
+            byte targetPawn = white ? (byte)(Piece.Pawn + Piece.White) : (byte)(Piece.Pawn + Piece.Black);
+            byte targetQueen = white ? (byte)(Piece.Queen + Piece.White) : (byte)(Piece.Queen + Piece.Black);
+            byte targetRook = white ? (byte)(Piece.Rook + Piece.White) : (byte)(Piece.Rook + Piece.Black);
+            byte targetBishop = white ? (byte)(Piece.Bishop + Piece.White) : (byte)(Piece.Bishop + Piece.Black);
+
+            // 1. King Check (nutzt kingMoves LUT)
+            int kingStartIndex = tables.kingMoveStartIndex[square];
+            int kingCount = tables.kingMoveCount[square];
+            for (int i = 0; i < kingCount; i++)
+            {
+                int nextSquare = tables.kingMoves[kingStartIndex + i];
+                if (boardArray[nextSquare] == targetKing)
+                    return true;
+            }
+
+            // 2. Knight Check (nutzt knightMoves LUT)
+            int knightStartIndex = tables.knightMoveStartIndex[square];
+            int knightCount = tables.knightMoveCount[square];
+            for (int i = 0; i < knightCount; i++)
+            {
+                int nextSquare = tables.knightMoves[knightStartIndex + i];
+                if (boardArray[nextSquare] == targetKnight)
+                    return true;
+            }
+
+            // 3. Pawn Check
+            // Wir müssen prüfen, ob ein Bauer auf einem Feld steht, das 'square' angreift.
+            // Weiße Bauern greifen nach oben an (NW, NE) -> Bauer auf square - BoardWidth - 1 oder square - BoardWidth + 1
+            // Schwarze Bauern greifen nach unten an (SW, SE) -> Bauer auf square + BoardWidth - 1 oder square + BoardWidth + 1
+            if (white)
+            {
+                // Prüfe, ob ein weißer Bauer auf einem Feld steht, das 'square' angreift
+                // Weiße Bauern greifen nach oben an: NW (square - BoardWidth - 1) und NE (square - BoardWidth + 1)
+                int pawnSquare1 = square - tables.BoardWidth - 1;
+                int pawnSquare2 = square - tables.BoardWidth + 1;
+
+                if (pawnSquare1 >= 0 && pawnSquare1 < tables.TotalSquares)
+                {
+                    byte piece = boardArray[pawnSquare1];
+                    if (piece != Piece.Inactive && piece == targetPawn)
+                        return true;
+                }
+
+                if (pawnSquare2 >= 0 && pawnSquare2 < tables.TotalSquares)
+                {
+                    byte piece = boardArray[pawnSquare2];
+                    if (piece != Piece.Inactive && piece == targetPawn)
+                        return true;
+                }
+            }
+            else
+            {
+                // Prüfe, ob ein schwarzer Bauer auf einem Feld steht, das 'square' angreift
+                // Schwarze Bauern greifen nach unten an: SW (square + BoardWidth - 1) und SE (square + BoardWidth + 1)
+                int pawnSquare1 = square + tables.BoardWidth - 1;
+                int pawnSquare2 = square + tables.BoardWidth + 1;
+
+                if (pawnSquare1 >= 0 && pawnSquare1 < tables.TotalSquares)
+                {
+                    byte piece = boardArray[pawnSquare1];
+                    if (piece != Piece.Inactive && piece == targetPawn)
+                        return true;
+                }
+
+                if (pawnSquare2 >= 0 && pawnSquare2 < tables.TotalSquares)
+                {
+                    byte piece = boardArray[pawnSquare2];
+                    if (piece != Piece.Inactive && piece == targetPawn)
+                        return true;
+                }
+            }
+
+            // 4. Rook & Queen Check (nutzt squaresToEdge für sliding pieces)
+            // Richtungen: N(0), E(2), S(4), W(6)
+            var offsets = tables.directionOffsets;
+            var distToEdge = tables.squaresToEdge;
+            int squareIndexOffset = square * 8;
+
+            for (int dirIndex = 0; dirIndex < 8; dirIndex += 2) // N, E, S, W
+            {
+                int directionOffset = offsets[dirIndex];
+                int maxSteps = distToEdge[squareIndexOffset + dirIndex];
+                int currentSquare = square;
+
+                for (int step = 0; step < maxSteps; step++)
+                {
+                    currentSquare += directionOffset;
+                    byte targetPiece = boardArray[currentSquare];
+
+                    if (targetPiece == Piece.Empty)
+                        continue;
+
+                    if (targetPiece == Piece.Inactive)
+                        break;
+
+                    if (targetPiece == targetRook || targetPiece == targetQueen)
+                        return true;
+
+                    // Blockiert durch andere Figur
+                    break;
+                }
+            }
+
+            // 5. Bishop & Queen Check (nutzt squaresToEdge für sliding pieces)
+            // Richtungen: NE(1), SE(3), SW(5), NW(7)
+            for (int dirIndex = 1; dirIndex < 8; dirIndex += 2) // NE, SE, SW, NW
+            {
+                int directionOffset = offsets[dirIndex];
+                int maxSteps = distToEdge[squareIndexOffset + dirIndex];
+                int currentSquare = square;
+
+                for (int step = 0; step < maxSteps; step++)
+                {
+                    currentSquare += directionOffset;
+                    byte targetPiece = boardArray[currentSquare];
+
+                    if (targetPiece == Piece.Empty)
+                        continue;
+
+                    if (targetPiece == Piece.Inactive)
+                        break;
+
+                    if (targetPiece == targetBishop || targetPiece == targetQueen)
+                        return true;
+
+                    // Blockiert durch andere Figur
+                    break;
+                }
+            }
+
             return false;
         }
 
