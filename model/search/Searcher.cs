@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.TagHelpers;
+using Microsoft.AspNetCore.Mvc.TagHelpers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,7 +10,7 @@ using uncy.model.eval;
 
 namespace uncy.model.search
 {
-    public class Search 
+    public class Search
     {
         private IEvaluator evaluator;
         private TranspositionTable transpositionTable;
@@ -35,7 +35,7 @@ namespace uncy.model.search
             Console.WriteLine("---------");
 
             return m;
-            
+
 
 
         }
@@ -43,7 +43,7 @@ namespace uncy.model.search
         public Move StartIterativeDeepening(Board board, int max_depth)
         {
             Move bestMove = default;
-            for (int currentDepth = 1; currentDepth<=max_depth; currentDepth++)
+            for (int currentDepth = 1; currentDepth <= max_depth; currentDepth++)
             {
                 Move bestMoveForCurrentDepth = StartMinimaxSearch(board, currentDepth);
                 bestMove = bestMoveForCurrentDepth;
@@ -54,7 +54,7 @@ namespace uncy.model.search
             return bestMove;
         }
 
-        public Move StartMinimaxSearch(Board board,int depth)
+        public Move StartMinimaxSearch(Board board, int depth)
         {
             if (depth <= 0) throw new ArgumentOutOfRangeException(nameof(depth));
 
@@ -99,7 +99,7 @@ namespace uncy.model.search
             ulong zobristKey = board.currentZobristKey;
             if (transpositionTable.TryGetEntry(zobristKey, out TranspositionTableEntry entry) && entry.depth >= depth)
             {
-                switch(entry.flag)
+                switch (entry.flag)
                 {
                     case TranspositionTableFlag.EXACT:
                         return entry.score;
@@ -122,11 +122,11 @@ namespace uncy.model.search
             }
 
             MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
-            Move? m;    
-            
+            Move? m;
+
             if (moveSorter.HasNoMoreMoves())
             {
-               if (board.IsKingInCheck(board.sideToMove))
+                if (board.IsKingInCheck(board.sideToMove))
                 {
                     if (board.sideToMove)
                     {
@@ -154,19 +154,19 @@ namespace uncy.model.search
                 int maxScore = int.MinValue;
                 //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
                 //foreach (Move m in SortedMoves(board))
-                while((m = moveSorter.GetNextMove()) != null)
+                while ((m = moveSorter.GetNextMove()) != null)
                 {
                     if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                         continue;
                     int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
                     board.UnmakeMove(m.Value, undo);
-                    
-                    if(score > maxScore)
+
+                    if (score > maxScore)
                     {
                         maxScore = score;
                         bestMoveInNode = m.Value;
                     }
-                    
+
 
                     // Alpha beta pruning happens here:
                     alpha = Math.Max(alpha, score);
@@ -179,7 +179,7 @@ namespace uncy.model.search
                 }
 
                 TranspositionTableFlag flag;
-                if(maxScore > originalAlpha)
+                if (maxScore > originalAlpha)
                 {
                     flag = TranspositionTableFlag.EXACT;
                 }
@@ -202,8 +202,8 @@ namespace uncy.model.search
                         continue;
                     int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
                     board.UnmakeMove(m.Value, undo);
-                    
-                    if(score < minScore)
+
+                    if (score < minScore)
                     {
                         minScore = score;
                         bestMoveInNode = m.Value;
@@ -211,7 +211,7 @@ namespace uncy.model.search
 
                     // Pruning
                     beta = Math.Min(beta, score);
-                    if (beta <= alpha) 
+                    if (beta <= alpha)
                     {
                         transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m.Value);
                         return minScore;
@@ -230,7 +230,7 @@ namespace uncy.model.search
 
             if (transpositionTable.TryGetEntry(b.currentZobristKey, out TranspositionTableEntry entry))
             {
-                for(int i = 0; i < possibleMoves.Count; i++) 
+                for (int i = 0; i < possibleMoves.Count; i++)
                 {
                     if (possibleMoves[i].Equals(entry.bestMove) && i != 0)
                     {
