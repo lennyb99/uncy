@@ -17,12 +17,14 @@ namespace uncy.model.search
 
         public MoveSorter(Board board, TranspositionTable tt) // Killer moves & depth, Historyheuristic for quiet moves,
         {
-            moves = MoveGenerator.GenerateLegalMoves(board);
+            // Use pseudo moves instead of legal moves - legality check happens in Searcher via MakeMove()
+            moves = new List<Move>();
+            MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, moves);
             scores = new int[moves.Count];
 
             Move pvMove = tt.GetBestMove(board.currentZobristKey);
 
-            for (int i = 0; i<moves.Count; i++)
+            for (int i = 0; i < moves.Count; i++)
             {
                 scores[i] = CalculateMoveScore(moves[i], pvMove);
             }
@@ -51,7 +53,7 @@ namespace uncy.model.search
 
             return captureValue * 100 - attackValue;
         }
-    
+
         public Move? GetNextMove()
         {
             if (currentIndex >= moves.Count)
