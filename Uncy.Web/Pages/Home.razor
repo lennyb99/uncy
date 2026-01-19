@@ -1,0 +1,38 @@
+@page "/"
+@using Uncy.Shared
+@inject Engine ChessEngine
+
+<PageTitle>Uncy Chess</PageTitle>
+
+<h1>Uncy Web-Engine</h1>
+
+<div class="status-panel">
+    <p>Status: <b>@status</b></p>
+    <p>Bester Zug: <span class="badge">@bestMove</span></p>
+</div>
+
+<button class="btn btn-primary" @onclick="Berechne" disabled="@isCalculating">
+    @(isCalculating ? "Rechnet..." : "Besten Zug finden")
+</button>
+
+@code {
+    private string status = "Bereit";
+    private string bestMove = "-";
+    private bool isCalculating = false;
+
+    private async Task Berechne()
+    {
+        isCalculating = true;
+        status = "Die Engine analysiert die Stellung...";
+
+        // Wir nutzen Task.Run, damit das Browser-UI während der 
+        // Berechnung nicht einfriert (Wichtig für WebAssembly!)
+        bestMove = await Task.Run(() => {
+            // Hier die Methode aus deinem Shared-Projekt aufrufen
+            return ChessEngine.StartSearch(4);
+        });
+
+        status = "Berechnung fertig.";
+        isCalculating = false;
+    }
+}
