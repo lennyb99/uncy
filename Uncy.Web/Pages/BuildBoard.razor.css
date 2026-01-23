@@ -1,0 +1,200 @@
+.text-field-container {
+    position: absolute;
+    top: -3.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+.board-text-field {
+    padding: 0.75rem 1rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #d7d7d7;
+    font-size: 1rem;
+    min-width: 300px;
+    max-width: calc(90vh - 4rem);
+    width: auto;
+    outline: none;
+}
+
+.board-text-field:focus {
+    border-color: rgba(255, 255, 255, 0.4);
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.copy-button {
+    padding: 0.75rem 1.5rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #d7d7d7;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.copy-button:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.copy-button:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.board-wrapper {
+    display: flex;
+    gap: 2rem;
+    width: 100%;
+    padding: 2rem;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.board-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+}
+
+.chessboard {
+    display: grid;
+    grid-template-columns: repeat(30, 1fr);
+    grid-template-rows: repeat(30, 1fr);
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 2px;
+    max-width: 90vh;
+    max-height: 90vh;
+    width: 100%;
+    height: auto;
+    user-select: none;
+}
+
+.square {
+    aspect-ratio: 1;
+    width: 100%;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+}
+
+.square.dark {
+    background-color: #8B4513;
+    /* Dunkelbraun */
+}
+
+.square.light {
+    background-color: #F5DEB3;
+    /* Beige */
+}
+
+.square.selected-dark {
+    background-color: #6A6A6A !important; /* Dunkleres Grau für dunkle Felder */
+}
+
+.square.selected-light {
+    background-color: #8A8A8A !important; /* Helleres Grau für helle Felder */
+}
+
+.square.drag-preview {
+    outline: 2px solid rgba(100, 150, 255, 0.8);
+    outline-offset: -2px;
+    background-color: rgba(100, 150, 255, 0.2) !important;
+}
+
+.square:hover {
+    opacity: 0.8;
+}
+
+.square {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.piece-image {
+    width: 90%;
+    height: 90%;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+}
+
+.piece-selector {
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 1.5rem;
+    min-width: 200px;
+    max-width: 250px;
+}
+
+.piece-selector h3 {
+    color: #d7d7d7;
+    font-size: 1.1rem;
+    margin: 0 0 1rem 0;
+    text-align: center;
+}
+
+.piece-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.piece-button {
+    aspect-ratio: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+}
+
+.piece-button:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.piece-button.active {
+    background-color: rgba(100, 150, 255, 0.3);
+    border-color: rgba(100, 150, 255, 0.6);
+    box-shadow: 0 0 10px rgba(100, 150, 255, 0.4);
+}
+
+.piece-button-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+}
+
+.eraser-icon {
+    width: 70%;
+    height: 70%;
+    color: #d7d7d7;
+    pointer-events: none;
+    user-select: none;
+}
+
+.piece-button.active .eraser-icon {
+    color: #ff6666;
+}

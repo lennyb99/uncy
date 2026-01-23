@@ -1,0 +1,435 @@
+@page "/build-board"
+
+<PageTitle>Build a Board - Uncy Chess</PageTitle>
+
+<h1>Build a Board</h1>
+
+<p>Hier können Sie ein benutzerdefiniertes Schachbrett erstellen.</p>
+
+<div class="board-wrapper">
+    <div class="board-container">
+        <div class="text-field-container">
+            <input type="text" class="board-text-field" @bind="boardText" />
+            <button class="copy-button" @onclick="CopyToClipboard" title="Copy to clipboard">
+                COPY
+            </button>
+        </div>
+        <div class="chessboard" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp"
+            @onmouseleave="OnMouseLeave">
+            @for (int row = 0; row < 30; row++)
+            {
+                @for (int col = 0; col < 30; col++)
+                {
+                    int index = row * 30 + col;
+                    bool isDark = (row + col) % 2 != 0;
+                    string squareClass = isDark ? "square dark" : "square light";
+                    if (selectedSquares.Contains(index))
+                    {
+                        squareClass += isDark ? " selected selected-dark" : " selected selected-light";
+                    }
+                    if (isDragging && dragSelection.Contains(index))
+                    {
+                        squareClass += " drag-preview";
+                    }
+                    <div class="@squareClass" @onmousedown:preventDefault="true" @onmousedown="() => OnSquareMouseDown(index)"
+                        @onmouseenter="() => OnSquareMouseEnter(index)" @onclick:stopPropagation="true">
+                        @if (boardPieces.ContainsKey(index) && boardPieces[index] != 0)
+                        {
+                            <img src="@GetPieceImagePath(boardPieces[index])" class="piece-image" alt="chess piece" />
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <div class="piece-selector">
+        <h3>Figuren auswählen</h3>
+        <div class="piece-buttons">
+            <!-- Erste Reihe: Activate Square und Eraser -->
+            <button class="piece-button @(selectedPiece.HasValue && selectedPiece.Value == 0 ? "active" : "")"
+                @onclick="() => SelectPiece(0)" title="Nur markieren">
+                <img src="images/activateSquare.png" class="piece-button-image" alt="Markieren" />
+            </button>
+            <button class="piece-button @(selectedPiece.HasValue && selectedPiece.Value == 255 ? "active" : "")"
+                @onclick="() => SelectPiece(255)" title="Figur entfernen">
+                <svg class="eraser-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.5 3.5L20.5 8.5L8.5 20.5L3.5 15.5L15.5 3.5Z" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M12 21H21" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" />
+                </svg>
+            </button>
+
+            <!-- Weiße und schwarze Figuren paarweise -->
+            @for (int i = 0; i < whitePieces.Count; i++)
+            {
+                var whitePiece = whitePieces[i];
+                var blackPiece = blackPieces[i];
+
+                <!-- Weiße Figur (links) -->
+                <button class="piece-button @(selectedPiece == whitePiece.Value ? "active" : "")"
+                    @onclick="() => SelectPiece(whitePiece.Value)" title="@whitePiece.Name">
+                    <img src="@GetPieceImagePath(whitePiece.Value)" class="piece-button-image" alt="@whitePiece.Name" />
+                </button>
+
+                <!-- Schwarze Figur (rechts) -->
+                <button class="piece-button @(selectedPiece == blackPiece.Value ? "active" : "")"
+                    @onclick="() => SelectPiece(blackPiece.Value)" title="@blackPiece.Name">
+                    <img src="@GetPieceImagePath(blackPiece.Value)" class="piece-button-image" alt="@blackPiece.Name" />
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private HashSet<int> selectedSquares = new HashSet<int>();
+    private Dictionary<int, byte> boardPieces = new Dictionary<int, byte>();
+    private string boardText = "";
+    private byte? selectedPiece = 0; // activateSquare per default aktiv
+
+    // Drag-to-Select Variablen
+    private bool isDragging = false;
+    private bool hasMoved = false; // Verfolgt, ob die Maus sich bewegt hat
+    private int? dragStartIndex = null;
+    private int? dragCurrentIndex = null;
+    private HashSet<int> dragSelection = new HashSet<int>();
+
+    protected override void OnInitialized()
+    {
+        InitializeBoard();
+    }
+
+    private void InitializeBoard()
+    {
+        // Alle Felder außer dem mittleren 8x8 Bereich als inaktiv markieren
+        int centerStart = 11; // (30 - 8) / 2 = 11
+        int centerEnd = 18; // 11 + 8 - 1 = 18
+
+        for (int row = 0; row < 30; row++)
+        {
+            for (int col = 0; col < 30; col++)
+            {
+                int index = row * 30 + col;
+                // Wenn außerhalb des 8x8 Bereichs, als inaktiv markieren
+                if (row < centerStart || row > centerEnd || col < centerStart || col > centerEnd)
+                {
+                    selectedSquares.Add(index);
+                }
+            }
+        }
+
+        // Standard-Schachaufstellung im 8x8 Bereich platzieren
+        SetupStandardChessPosition(centerStart, centerEnd);
+    }
+
+    private void SetupStandardChessPosition(int startRow, int endRow)
+    {
+        int startCol = startRow;
+        int endCol = endRow;
+
+        // Schwarze Figuren (oben, Reihen 0-1 im 8x8 Bereich)
+        // Reihe 0: Turm, Springer, Läufer, Dame, König, Läufer, Springer, Turm
+        SetPiece(GetIndex(startRow + 0, startCol + 0), (byte)(Uncy.Shared.boardAlt.Piece.Rook |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 1), (byte)(Uncy.Shared.boardAlt.Piece.Knight |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 2), (byte)(Uncy.Shared.boardAlt.Piece.Bishop |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 3), (byte)(Uncy.Shared.boardAlt.Piece.Queen |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 4), (byte)(Uncy.Shared.boardAlt.Piece.King |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 5), (byte)(Uncy.Shared.boardAlt.Piece.Bishop |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 6), (byte)(Uncy.Shared.boardAlt.Piece.Knight |
+        Uncy.Shared.boardAlt.Piece.Black));
+        SetPiece(GetIndex(startRow + 0, startCol + 7), (byte)(Uncy.Shared.boardAlt.Piece.Rook |
+        Uncy.Shared.boardAlt.Piece.Black));
+
+        // Reihe 1: 8 schwarze Bauern
+        for (int col = 0; col < 8; col++)
+        {
+            SetPiece(GetIndex(startRow + 1, startCol + col), (byte)(Uncy.Shared.boardAlt.Piece.Pawn |
+            Uncy.Shared.boardAlt.Piece.Black));
+        }
+
+        // Weiße Figuren (unten, Reihen 6-7 im 8x8 Bereich)
+        // Reihe 6: 8 weiße Bauern
+        for (int col = 0; col < 8; col++)
+        {
+            SetPiece(GetIndex(startRow + 6, startCol + col), (byte)(Uncy.Shared.boardAlt.Piece.Pawn |
+            Uncy.Shared.boardAlt.Piece.White));
+        }
+
+        // Reihe 7: Turm, Springer, Läufer, Dame, König, Läufer, Springer, Turm
+        SetPiece(GetIndex(startRow + 7, startCol + 0), (byte)(Uncy.Shared.boardAlt.Piece.Rook |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 1), (byte)(Uncy.Shared.boardAlt.Piece.Knight |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 2), (byte)(Uncy.Shared.boardAlt.Piece.Bishop |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 3), (byte)(Uncy.Shared.boardAlt.Piece.Queen |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 4), (byte)(Uncy.Shared.boardAlt.Piece.King |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 5), (byte)(Uncy.Shared.boardAlt.Piece.Bishop |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 6), (byte)(Uncy.Shared.boardAlt.Piece.Knight |
+        Uncy.Shared.boardAlt.Piece.White));
+        SetPiece(GetIndex(startRow + 7, startCol + 7), (byte)(Uncy.Shared.boardAlt.Piece.Rook |
+        Uncy.Shared.boardAlt.Piece.White));
+    }
+
+    private int GetIndex(int row, int col)
+    {
+        return row * 30 + col;
+    }
+
+    private List<(string Name, byte Value)> whitePieces = new List<(string, byte)>
+{
+("Weißer Bauer", (byte)(Uncy.Shared.boardAlt.Piece.Pawn | Uncy.Shared.boardAlt.Piece.White)),
+("Weißer Springer", (byte)(Uncy.Shared.boardAlt.Piece.Knight | Uncy.Shared.boardAlt.Piece.White)),
+("Weißer Läufer", (byte)(Uncy.Shared.boardAlt.Piece.Bishop | Uncy.Shared.boardAlt.Piece.White)),
+("Weißer Turm", (byte)(Uncy.Shared.boardAlt.Piece.Rook | Uncy.Shared.boardAlt.Piece.White)),
+("Weiße Dame", (byte)(Uncy.Shared.boardAlt.Piece.Queen | Uncy.Shared.boardAlt.Piece.White)),
+("Weißer König", (byte)(Uncy.Shared.boardAlt.Piece.King | Uncy.Shared.boardAlt.Piece.White))
+};
+
+    private List<(string Name, byte Value)> blackPieces = new List<(string, byte)>
+{
+("Schwarzer Bauer", (byte)(Uncy.Shared.boardAlt.Piece.Pawn | Uncy.Shared.boardAlt.Piece.Black)),
+("Schwarzer Springer", (byte)(Uncy.Shared.boardAlt.Piece.Knight | Uncy.Shared.boardAlt.Piece.Black)),
+("Schwarzer Läufer", (byte)(Uncy.Shared.boardAlt.Piece.Bishop | Uncy.Shared.boardAlt.Piece.Black)),
+("Schwarzer Turm", (byte)(Uncy.Shared.boardAlt.Piece.Rook | Uncy.Shared.boardAlt.Piece.Black)),
+("Schwarze Dame", (byte)(Uncy.Shared.boardAlt.Piece.Queen | Uncy.Shared.boardAlt.Piece.Black)),
+("Schwarzer König", (byte)(Uncy.Shared.boardAlt.Piece.King | Uncy.Shared.boardAlt.Piece.Black))
+};
+
+    private void SelectPiece(byte piece)
+    {
+        if (selectedPiece == piece)
+        {
+            selectedPiece = null;
+        }
+        else
+        {
+            selectedPiece = piece;
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleSquare(int index)
+    {
+        ApplyActionToSquare(index);
+    }
+
+    private void ApplyActionToSquare(int index)
+    {
+        if (selectedPiece.HasValue && selectedPiece.Value == 255)
+        {
+            // Radiergummi-Modus: Figur entfernen
+            SetPiece(index, 0);
+        }
+        else if (selectedPiece.HasValue && selectedPiece.Value != 0)
+        {
+            // Figur setzen oder entfernen
+            if (boardPieces.ContainsKey(index) && boardPieces[index] == selectedPiece.Value)
+            {
+                SetPiece(index, 0);
+            }
+            else
+            {
+                SetPiece(index, selectedPiece.Value);
+            }
+        }
+        else
+        {
+            // Nur farblich markieren (Activate Square-Modus oder keine Figur ausgewählt)
+            if (selectedSquares.Contains(index))
+            {
+                selectedSquares.Remove(index);
+            }
+            else
+            {
+                selectedSquares.Add(index);
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void ApplyActionToSquares(HashSet<int> indices)
+    {
+        foreach (var index in indices)
+        {
+            ApplyActionToSquare(index);
+        }
+        StateHasChanged();
+    }
+
+    private void OnSquareMouseDown(int index)
+    {
+        if (!isDragging)
+        {
+            isDragging = true;
+            hasMoved = false;
+            dragStartIndex = index;
+            dragCurrentIndex = index;
+            dragSelection.Clear();
+            dragSelection.Add(index);
+            StateHasChanged();
+        }
+    }
+
+    private void OnSquareMouseEnter(int index)
+    {
+        if (isDragging && dragStartIndex.HasValue)
+        {
+            if (dragCurrentIndex != index)
+            {
+                hasMoved = true;
+            }
+            dragCurrentIndex = index;
+            UpdateDragSelection();
+            StateHasChanged();
+        }
+    }
+
+    private void OnMouseDown(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        // Wird von den einzelnen Feldern behandelt
+    }
+
+    private void OnMouseMove(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        // Wird von den einzelnen Feldern behandelt
+    }
+
+    private void OnMouseUp(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        if (isDragging)
+        {
+            // Nur wenn tatsächlich ein Drag stattgefunden hat (mehrere Felder oder Bewegung)
+            if (hasMoved || dragSelection.Count > 1)
+            {
+                ApplyActionToSquares(dragSelection);
+            }
+            else if (dragStartIndex.HasValue)
+            {
+                // Einfacher Klick - normale Aktion auf ein Feld
+                ApplyActionToSquare(dragStartIndex.Value);
+                StateHasChanged();
+            }
+        }
+        isDragging = false;
+        hasMoved = false;
+        dragStartIndex = null;
+        dragCurrentIndex = null;
+        dragSelection.Clear();
+        StateHasChanged();
+    }
+
+    private void OnMouseLeave(Microsoft.AspNetCore.Components.Web.MouseEventArgs e)
+    {
+        if (isDragging)
+        {
+            // Nur wenn tatsächlich ein Drag stattgefunden hat
+            if (hasMoved || dragSelection.Count > 1)
+            {
+                ApplyActionToSquares(dragSelection);
+            }
+            else if (dragStartIndex.HasValue)
+            {
+                // Einfacher Klick - normale Aktion auf ein Feld
+                ApplyActionToSquare(dragStartIndex.Value);
+                StateHasChanged();
+            }
+        }
+        isDragging = false;
+        hasMoved = false;
+        dragStartIndex = null;
+        dragCurrentIndex = null;
+        dragSelection.Clear();
+        StateHasChanged();
+    }
+
+    private void UpdateDragSelection()
+    {
+        if (!dragStartIndex.HasValue || !dragCurrentIndex.HasValue)
+            return;
+
+        dragSelection.Clear();
+
+        int startRow = dragStartIndex.Value / 30;
+        int startCol = dragStartIndex.Value % 30;
+        int endRow = dragCurrentIndex.Value / 30;
+        int endCol = dragCurrentIndex.Value % 30;
+
+        int minRow = Math.Min(startRow, endRow);
+        int maxRow = Math.Max(startRow, endRow);
+        int minCol = Math.Min(startCol, endCol);
+        int maxCol = Math.Max(startCol, endCol);
+
+        for (int row = minRow; row <= maxRow; row++)
+        {
+            for (int col = minCol; col <= maxCol; col++)
+            {
+                int index = row * 30 + col;
+                dragSelection.Add(index);
+            }
+        }
+    }
+
+    private async Task CopyToClipboard()
+    {
+        await JSRuntime.InvokeVoidAsync("copyToClipboard", boardText);
+    }
+
+    private string GetPieceImagePath(byte piece)
+    {
+        bool isWhite = (piece & Uncy.Shared.boardAlt.Piece.White) == Uncy.Shared.boardAlt.Piece.White;
+        string color = isWhite ? "white" : "black";
+        string pieceType = "";
+
+        byte pieceTypeValue = Uncy.Shared.boardAlt.Piece.GetPieceType(piece);
+        switch (pieceTypeValue)
+        {
+            case Uncy.Shared.boardAlt.Piece.Pawn:
+                pieceType = "pawn";
+                break;
+            case Uncy.Shared.boardAlt.Piece.Knight:
+                pieceType = "knight";
+                break;
+            case Uncy.Shared.boardAlt.Piece.Bishop:
+                pieceType = "bishop";
+                break;
+            case Uncy.Shared.boardAlt.Piece.Rook:
+                pieceType = "rook";
+                break;
+            case Uncy.Shared.boardAlt.Piece.Queen:
+                pieceType = "queen";
+                break;
+            case Uncy.Shared.boardAlt.Piece.King:
+                pieceType = "king";
+                break;
+        }
+
+        return $"images/{color}{pieceType}.png";
+    }
+
+    private void SetPiece(int index, byte piece)
+    {
+        if (piece == 0)
+        {
+            boardPieces.Remove(index);
+        }
+        else
+        {
+            boardPieces[index] = piece;
+        }
+    }
+
+}
