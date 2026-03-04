@@ -1,0 +1,138 @@
+.brett-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.brett-difficulty-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.brett-difficulty-label {
+    color: #d7d7d7;
+    font-size: 0.95rem;
+}
+
+.brett-difficulty-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.95rem;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #e8e8e8;
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.brett-difficulty-btn:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+.brett-difficulty-text {
+    color: #b0c0d8;
+    font-size: 0.95rem;
+}
+
+.brett-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.brett-chessboard {
+    display: grid;
+    grid-template-columns: repeat(var(--files), 1fr);
+    grid-template-rows: repeat(var(--ranks), 1fr);
+    gap: 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 2px;
+    max-width: min(90vh, 600px);
+    max-height: min(90vh, 600px);
+    aspect-ratio: var(--files) / var(--ranks);
+}
+
+.brett-square {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    min-height: 0;
+    cursor: default;
+}
+
+.brett-square.brett-clickable {
+    cursor: pointer;
+}
+
+.brett-selected {
+    outline: 3px solid rgba(255, 200, 0, 0.9);
+    outline-offset: -2px;
+    z-index: 1;
+}
+
+.brett-last-move {
+    background-color: rgba(155, 199, 0, 0.35) !important;
+}
+
+.brett-legal {
+    position: relative;
+}
+
+.brett-legal::after {
+    content: "";
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+.brett-legal:has(.brett-piece-image)::after {
+    width: 85%;
+    height: 85%;
+    border-radius: 50%;
+    border: 3px solid rgba(200, 50, 50, 0.6);
+    background-color: transparent;
+}
+
+.brett-dark {
+    background-color: #8B4513;
+}
+
+.brett-light {
+    background-color: #F5DEB3;
+}
+
+.brett-inactive {
+    background-color: #4a4a4a !important;
+    opacity: 0.7;
+}
+
+.brett-piece-image {
+    width: 90%;
+    height: 90%;
+    object-fit: contain;
+    pointer-events: none;
+}
+
+.brett-error {
+    grid-column: 1 / -1;
+    color: #d7d7d7;
+    padding: 1rem;
+}
+
+.brett-engine-thinking {
+    color: #a0c0e0;
+    font-weight: 500;
+    margin: 0;
+}

@@ -1,0 +1,315 @@
+@using Uncy.Shared.boardAlt
+@using Uncy.Shared.core
+
+<div class="brett-wrapper">
+    @if (Interactive && PlayVsEngine)
+    {
+        <div class="brett-difficulty-row">
+            @if (_selectedDifficulty == null)
+            {
+                <span class="brett-difficulty-label">Schwierigkeit wählen:</span>
+                <button type="button" class="brett-difficulty-btn" @onclick="() => SelectDifficulty(Difficulty.Easy)">Leicht</button>
+                <button type="button" class="brett-difficulty-btn" @onclick="() => SelectDifficulty(Difficulty.Normal)">Normal</button>
+                <button type="button" class="brett-difficulty-btn" @onclick="() => SelectDifficulty(Difficulty.Advanced)">Fortgeschritten</button>
+            }
+            else
+            {
+                <span class="brett-difficulty-text">Schwierigkeit: @GetDifficultyLabel(_selectedDifficulty.Value)</span>
+            }
+        </div>
+    }
+    @if (Interactive && _engineThinking)
+    {
+        <p class="brett-engine-thinking">Engine denkt…</p>
+    }
+    @if (Interactive)
+    {
+        <div class="brett-container">
+            <div class="brett-chessboard" style="--files: @(fileCount); --ranks: @(rankCount);">
+                @if (board != null)
+                {
+                    @for (int rank = rankCount - 1; rank >= 0; rank--)
+                    {
+                        @for (int file = 0; file < fileCount; file++)
+                        {
+                            int index = rank * fileCount + file;
+                            byte piece = board.board![index];
+                            bool isDark = (rank + file) % 2 != 0;
+                            string squareClass = isDark ? "brett-square brett-dark" : "brett-square brett-light";
+                            if (Piece.IsSquareActive(piece) == false)
+                            {
+                                squareClass += " brett-inactive";
+                            }
+                            if (selectedSquare == index)
+                                squareClass += " brett-selected";
+                            else if (legalTargetSquares.Contains(index))
+                                squareClass += " brett-legal";
+                            if (_lastEngineMove.HasValue && (index == _lastEngineMove.Value.from || index == _lastEngineMove.Value.to))
+                                squareClass += " brett-last-move";
+                            bool hasPiece = Piece.IsSquareActive(piece) && Piece.GetPieceType(piece) != Piece.Empty;
+                            bool difficultyChosen = !PlayVsEngine || _selectedDifficulty != null;
+                            bool isHumanTurn = !PlayVsEngine || (HumanPlaysWhite && board.sideToMove) || (!HumanPlaysWhite && !board.sideToMove);
+                            bool clickable = Piece.IsSquareActive(piece) && difficultyChosen && isHumanTurn && !_engineThinking;
+                            if (clickable) squareClass += " brett-clickable";
+                            <div class="@squareClass" @onclick="() => OnSquareClick(index)">
+                                @if (hasPiece)
+                                {
+                                    <img src="@GetPieceImagePath(piece)" class="brett-piece-image" alt="Figur" draggable="false" />
+                                }
+                            </div>
+                        }
+                    }
+                }
+                else
+                {
+                    <p class="brett-error">Ungültige FEN-Position.</p>
+                }
+            </div>
+        </div>
+    }
+    @if (!Interactive)
+    {
+        <div class="brett-container">
+            <div class="brett-chessboard" style="--files: @(fileCount); --ranks: @(rankCount);">
+                @if (board != null)
+                {
+                    @for (int rank = rankCount - 1; rank >= 0; rank--)
+                    {
+                        @for (int file = 0; file < fileCount; file++)
+                        {
+                            int index = rank * fileCount + file;
+                            byte piece = board.board![index];
+                            bool isDark = (rank + file) % 2 != 0;
+                            string squareClass = isDark ? "brett-square brett-dark" : "brett-square brett-light";
+                            if (Piece.IsSquareActive(piece) == false) { squareClass += " brett-inactive"; }
+                            <div class="@squareClass">
+                                @if (Piece.IsSquareActive(piece) && Piece.GetPieceType(piece) != Piece.Empty)
+                                {
+                                    <img src="@GetPieceImagePath(piece)" class="brett-piece-image" alt="Figur" />
+                                }
+                            </div>
+                        }
+                    }
+                }
+                else
+                {
+                    <p class="brett-error">Ungültige FEN-Position.</p>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string FenString { get; set; } = "";
+
+    [Parameter]
+    public bool Interactive { get; set; } = true;
+
+    [Parameter]
+    public bool HumanPlaysWhite { get; set; } = true;
+
+    [Parameter]
+    public int EngineDepth { get; set; } = 6;
+
+    [Parameter]
+    public bool PlayVsEngine { get; set; } = true;
+
+    private enum Difficulty { Easy = 4, Normal = 6, Advanced = 8 }
+
+    private Difficulty? _selectedDifficulty;
+    private (int from, int to)? _lastEngineMove;
+    private Board? board;
+    private string _lastFenString = "";
+    private int fileCount;
+    private int rankCount;
+
+    private int? selectedSquare;
+    private HashSet<int> legalTargetSquares = new();
+    private List<Move> _legalMovesCache = new();
+    private bool _engineThinking;
+    private Engine? _engine;
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrWhiteSpace(FenString))
+        {
+            board = null;
+            return;
+        }
+        if (board == null || FenString != _lastFenString)
+        {
+            _lastFenString = FenString;
+            try
+            {
+                var fen = new Fen(FenString);
+                board = new Board(fen);
+                if (board.board == null || board.dimensionsOfBoard == (0, 0))
+                {
+                    board = null;
+                    return;
+                }
+                fileCount = board.dimensionsOfBoard.Item1;
+                rankCount = board.dimensionsOfBoard.Item2;
+                selectedSquare = null;
+                legalTargetSquares.Clear();
+                RefreshLegalMoves();
+            }
+            catch
+            {
+                board = null;
+            }
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && PlayVsEngine && _selectedDifficulty != null && IsEngineTurn())
+            _ = MaybeTriggerEngineMoveAsync();
+    }
+
+    private void SelectDifficulty(Difficulty d)
+    {
+        _selectedDifficulty = d;
+        StateHasChanged();
+        if (PlayVsEngine && IsEngineTurn())
+            _ = MaybeTriggerEngineMoveAsync();
+    }
+
+    private static int GetDepth(Difficulty d) => (int)d;
+
+    private static string GetDifficultyLabel(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Leicht",
+        Difficulty.Normal => "Normal",
+        Difficulty.Advanced => "Fortgeschritten",
+        _ => ""
+    };
+
+    private bool IsEngineTurn()
+    {
+        if (board == null || !PlayVsEngine) return false;
+        return (HumanPlaysWhite && !board.sideToMove) || (!HumanPlaysWhite && board.sideToMove);
+    }
+
+    private async Task MaybeTriggerEngineMoveAsync()
+    {
+        if (board == null || _engineThinking || !IsEngineTurn() || _selectedDifficulty == null) return;
+        var legalMoves = board.GetLegalMoves();
+        if (legalMoves.Count == 0) return;
+
+        _engineThinking = true;
+        StateHasChanged();
+
+        try
+        {
+            _engine ??= new Engine();
+            var fen = new Fen(board.ToFen());
+            var move = await Task.Run(() =>
+            {
+                _engine!.SetupBoard(fen);
+                return _engine.GetBestMove(GetDepth(_selectedDifficulty!.Value));
+            });
+            board.MakeMove(move, out _);
+            _lastEngineMove = (move.fromSquare, move.toSquare);
+            selectedSquare = null;
+            legalTargetSquares.Clear();
+            RefreshLegalMoves();
+        }
+        finally
+        {
+            _engineThinking = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void RefreshLegalMoves()
+    {
+        _legalMovesCache.Clear();
+        legalTargetSquares.Clear();
+        if (board == null) return;
+        _legalMovesCache = board.GetLegalMoves();
+        if (selectedSquare.HasValue)
+        {
+            foreach (var m in _legalMovesCache)
+            {
+                if (m.fromSquare == selectedSquare.Value)
+                    legalTargetSquares.Add(m.toSquare);
+            }
+        }
+    }
+
+    private void OnSquareClick(int index)
+    {
+        if (board?.board == null || _engineThinking) return;
+        if (PlayVsEngine && _selectedDifficulty == null) return;
+        if (PlayVsEngine && ((HumanPlaysWhite && !board.sideToMove) || (!HumanPlaysWhite && board.sideToMove))) return;
+        byte piece = board.board[index];
+        bool isActive = Piece.IsSquareActive(piece);
+        bool isPiece = isActive && Piece.GetPieceType(piece) != Piece.Empty;
+        bool isWhite = isPiece && Piece.IsColor(piece, Piece.White);
+        bool isBlack = isPiece && Piece.IsColor(piece, Piece.Black);
+        bool whiteToMove = board.sideToMove;
+
+        if (selectedSquare.HasValue)
+        {
+            if (legalTargetSquares.Contains(index))
+            {
+                var move = _legalMovesCache.FirstOrDefault(m => m.fromSquare == selectedSquare.Value && m.toSquare == index);
+                if (move.fromSquare == selectedSquare.Value && move.toSquare == index)
+                {
+                    board.MakeMove(move, out _);
+                    _lastEngineMove = null;
+                    selectedSquare = null;
+                    legalTargetSquares.Clear();
+                    RefreshLegalMoves();
+                    if (PlayVsEngine) _ = MaybeTriggerEngineMoveAsync();
+                    return;
+                }
+            }
+            if (isPiece && ((whiteToMove && isWhite) || (!whiteToMove && isBlack)))
+            {
+                selectedSquare = index;
+                RefreshLegalMoves();
+                foreach (var m in _legalMovesCache)
+                {
+                    if (m.fromSquare == index)
+                        legalTargetSquares.Add(m.toSquare);
+                }
+                return;
+            }
+            selectedSquare = null;
+            legalTargetSquares.Clear();
+            RefreshLegalMoves();
+            return;
+        }
+
+        if (isPiece && ((whiteToMove && isWhite) || (!whiteToMove && isBlack)))
+        {
+            selectedSquare = index;
+            foreach (var m in _legalMovesCache)
+            {
+                if (m.fromSquare == index)
+                    legalTargetSquares.Add(m.toSquare);
+            }
+        }
+    }
+
+    private static string GetPieceImagePath(byte piece)
+    {
+        bool isWhite = (piece & Piece.White) == Piece.White;
+        string color = isWhite ? "white" : "black";
+        string pieceType = Piece.GetPieceType(piece) switch
+        {
+            Piece.Pawn => "pawn",
+            Piece.Knight => "knight",
+            Piece.Bishop => "bishop",
+            Piece.Rook => "rook",
+            Piece.Queen => "queen",
+            Piece.King => "king",
+            _ => "pawn"
+        };
+        return $"images/{color}{pieceType}.png";
+    }
+}

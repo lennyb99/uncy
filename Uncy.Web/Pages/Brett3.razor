@@ -1,0 +1,11 @@
+@page "/brett-3"
+<PageTitle>Brett 3 - Uncy Chess</PageTitle>
+
+<h1>Brett 3</h1>
+
+<BoardFromFen FenString="@Fen8x10" />
+
+@code {
+    /// <summary>8×10 Brett: 8 Linien, 10 Reihen (zusätzliche leere Reihen oben und unten).</summary>
+    private const string Fen8x10 = "rnbqkbnr/pppppppp/8/8/8/4xxxx/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+}

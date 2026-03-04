@@ -53,6 +53,23 @@ namespace Uncy.Shared.core {
             return "";
         }
 
+        /// <summary>
+        /// Returns the best move for the current side to move without applying it.
+        /// Call SetupBoard with the current position first.
+        /// </summary>
+        public Move GetBestMove(int depth)
+        {
+            return search.FindBestMove(board, depth);
+        }
+
+        /*
+         * Takes a list of a 30x30 board and evaluates the position. If it is legal, the corresponding fen is returned.
+         */
+        public string CalculateFen(List<byte> pieces)
+        {
+            return "";
+        }
+
 
     }
 

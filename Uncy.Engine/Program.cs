@@ -18,9 +18,9 @@ class Program
         Fen fenBishop = new Fen("8/8/8/8/3B4/8/8/8 w KQkq - 0 1");
         Fen fenKnight = new Fen("k7/8/8/8/3N4/8/8/K7 w KQkq - 0 1");
 
-        Fen bigFen = new Fen("10/10/pppp4pp/10/10/10 w KQkq - 0 1");
+        Fen bigFen = new Fen("bBbBbBbBbB/rRrRrRrRrR/pppp4pp/bBbBbBbBbB/rRrRrRrRrR/pPpPpPpPpP w KQkq - 0 1");
 
-        Fen tempFen = new Fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+        Fen tempFen = new Fen("rnbqkbnr/1ppppppp/8/8/2B1P3/p4Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1");
 
         Fen debugFen = new Fen("r2q1rk1/1bp2p2/pb1p1n2/1p2n1B1/3p4/1BPQ4/P4PPP/RN2R1K1 w - - 0 1");
         Fen debugFenTwo = new Fen("rnbqkbnr/p1pppppp/1p6/8/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -28,14 +28,17 @@ class Program
         Fen closedPositionWithBishops = new Fen("5b2/3k4/1p1p1p1p/pPpPpPpP/P1P1P1P1/8/3BK3/8 w - - 0 1");
         Fen mateToFind = new Fen("r2r2k1/pp3ppp/2p2b2/5q2/4RB2/1P3PP1/P4P1P/3QR1K1 w - - 0 1");
 
-        Board board = new Board(bigFen);
+        Board board = new Board(tempFen);
         //board.PrintBoardToConsole();
+
+        Console.WriteLine(Piece.GiveCharIdentifier(board.board[34]));
+
 
         //Console.WriteLine(board.ToFen());
 
         // Original Perft (misst viel mehr als nur Move-Generation)
         //StartPerftDebug(board, 5);
-        //StartSearch(board, 5);
+        StartSearch(board, 2);
 
         // Vergleich: Alle Perft-Varianten
         //CompareAllPerftVariants(board, 5);

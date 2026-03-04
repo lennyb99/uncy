@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.Eventing.Reader;
+using System.Diagnostics.Eventing.Reader;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -59,7 +59,6 @@ namespace Uncy.Shared.boardAlt
 
             // Create the lookup tables for this board
             MoveGenerator.AssignTables(new MoveLookUpTables(this));
-
         }
 
 
@@ -142,7 +141,7 @@ namespace Uncy.Shared.boardAlt
 
                 for (int file = 0; file < dimensionsOfBoard.Item1; file++)
                 {
-                    int index = rank * 8 + file;
+                    int index = rank * dimensionsOfBoard.Item1 + file;
 
                     byte piece = board[index];
 
@@ -758,6 +757,12 @@ namespace Uncy.Shared.boardAlt
                 return true;
             }
             return false;
+        }
+
+        /// <summary>Returns all legal moves for the side to move. For use by UI (e.g. Blazor).</summary>
+        public List<Move> GetLegalMoves()
+        {
+            return MoveGenerator.GenerateLegalMoves(this);
         }
 
         public bool IsSquareOccupiedByPiece(int square)
