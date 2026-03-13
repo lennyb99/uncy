@@ -20,7 +20,7 @@ class Program
 
         Fen bigFen = new Fen("bBbBbBbBbB/rRrRrRrRrR/pppp4pp/bBbBbBbBbB/rRrRrRrRrR/pPpPpPpPpP w KQkq - 0 1");
 
-        Fen tempFen = new Fen("rnbqkbnr/1ppppppp/8/8/2B1P3/p4Q2/PPPP1PPP/RNB1K1NR w KQkq - 0 1");
+        Fen tempFen = new Fen("1r4k1/5ppp/2Q5/8/8/8/5PPP/2R3K1 b - - 0 1");
 
         Fen debugFen = new Fen("r2q1rk1/1bp2p2/pb1p1n2/1p2n1B1/3p4/1BPQ4/P4PPP/RN2R1K1 w - - 0 1");
         Fen debugFenTwo = new Fen("rnbqkbnr/p1pppppp/1p6/8/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -31,14 +31,13 @@ class Program
         Board board = new Board(tempFen);
         //board.PrintBoardToConsole();
 
-        Console.WriteLine(Piece.GiveCharIdentifier(board.board[34]));
 
 
         //Console.WriteLine(board.ToFen());
 
         // Original Perft (misst viel mehr als nur Move-Generation)
         //StartPerftDebug(board, 5);
-        StartSearch(board, 2);
+        StartSearch(board, 6);
 
         // Vergleich: Alle Perft-Varianten
         //CompareAllPerftVariants(board, 5);
@@ -58,8 +57,15 @@ class Program
         Move move = search.FindBestMove(board, depth);
 
         Console.WriteLine(move.ToString());
-        board.MakeMove(move, out Undo undo);
-        board.PrintBoardToConsole();
+        if (move.IsValid)
+        {
+            board.MakeMove(move, out Undo undo);
+            board.PrintBoardToConsole();
+        }
+        else
+        {
+            Console.WriteLine("No legal move found (invalid/default move from search).");
+        }
     }
 
     private static void StartPerftDebug(Board board, int depth)
@@ -144,7 +150,7 @@ class Program
         Console.WriteLine($"   - Mit Divide-Ausgabe: PerftDivideFast(verbose: false)\n");
     }
 
-    
+
 
 
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing.Text;
 using System.Linq;
@@ -22,23 +22,23 @@ namespace Uncy.Shared.search
             MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, moves);
             scores = new int[moves.Count];
 
-            Move pvMove = tt.GetBestMove(board.currentZobristKey);
+            bool hasPvMove = tt.TryGetBestMove(board.currentZobristKey, out Move pvMove);
 
             for (int i = 0; i < moves.Count; i++)
             {
-                scores[i] = CalculateMoveScore(moves[i], pvMove);
+                scores[i] = CalculateMoveScore(moves[i], hasPvMove ? pvMove : default, hasPvMove);
             }
 
         }
 
-        private int CalculateMoveScore(Move move, Move pvMove)
+        private int CalculateMoveScore(Move move, Move pvMove, bool usePv)
         {
-            if (move.Equals(pvMove))
+            if (usePv && move.Equals(pvMove))
             {
                 return 2_000_000;
             }
 
-            if (move.capturedPiece != 'e')
+            if (move.capturedPiece != Piece.Empty)
             {
                 return 1_000_000 + CalculateMvvLvaScore(move);
             }

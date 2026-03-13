@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -78,16 +78,19 @@ namespace Uncy.Shared.search
             return false;
         }
 
-        public Move GetBestMove(ulong zkey)
+        /// <summary>Returns true and the stored best move when the position is in the table and has a valid best move. Otherwise false.</summary>
+        public bool TryGetBestMove(ulong zkey, out Move bestMove)
         {
             int index = GetIndex(zkey);
             ref TranspositionTableEntry entry = ref table[index];
 
-            if(entry.zobristKey == zkey)
+            if (entry.zobristKey == zkey && entry.bestMove.IsValid)
             {
-                return entry.bestMove;
+                bestMove = entry.bestMove;
+                return true;
             }
-            return new Move();
+            bestMove = default;
+            return false;
         }
 
     }

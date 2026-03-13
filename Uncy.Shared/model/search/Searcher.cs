@@ -45,7 +45,10 @@ namespace Uncy.Shared.search
             for (int currentDepth = 1; currentDepth <= max_depth; currentDepth++)
             {
                 Move bestMoveForCurrentDepth = StartMinimaxSearch(board, currentDepth);
-                bestMove = bestMoveForCurrentDepth;
+                // Nur gültige Züge übernehmen – sonst würde z. B. ein TT-Cutoff oder eine tiefere Suche
+                // ohne Root-Move ein früher gefundenes gültiges Move mit default überschreiben.
+                if (bestMoveForCurrentDepth.IsValid)
+                    bestMove = bestMoveForCurrentDepth;
 
                 // TODO: Implement time limit for search
                 // if(timeIsUp()) break;
@@ -63,31 +66,55 @@ namespace Uncy.Shared.search
             int beta = int.MaxValue;
             int bestScore = maximizingSide ? int.MinValue : int.MaxValue;
 
+            ulong rootZobristKey = board.currentZobristKey;
             MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
             Move? m;
+            int movesTried = 0;
 
             //foreach (Move move in MoveGenerator.GeneratePseudoMoves(board, board.sideToMove))
             //foreach (Move moves in SortedMoves(board))
             while ((m = moveSorter.GetNextMove()) != null)
             {
+                movesTried++;
                 if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                     continue;
 
-                int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maximizingSide);
-
-                board.UnmakeMove(m.Value, undo);
-
-                bool isBetter = maximizingSide ? score > bestScore : score < bestScore;
-                if (isBetter)
+                try
                 {
-                    bestScore = score;
-                    bestMove = m.Value;
+                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maximizingSide);
+
+                    bool isBetter = maximizingSide ? score > bestScore : score < bestScore;
+                    if (isBetter)
+                    {
+                        bestScore = score;
+                        bestMove = m.Value;
+                    }
+
+                    alpha = Math.Max(alpha, bestScore);
+                    if (alpha >= beta) break;
                 }
-
-                alpha = Math.Max(alpha, bestScore);
-                if (alpha >= beta) break;
-
+                finally
+                {
+                    board.UnmakeMove(m.Value, undo);
+                }
             }
+
+            // Fallback: Es gab Pseudo-Moves, aber alle wurden als illegal verworfen – trotzdem ersten legalen Zug finden.
+            // Nur wenn Board unverändert (Zobrist gleich), sonst wurde das Brett in der Rekursion nicht korrekt zurückgesetzt.
+            if (!bestMove.IsValid && movesTried > 0 && board.currentZobristKey == rootZobristKey)
+            {
+                MoveSorter fallbackSorter = new MoveSorter(board, transpositionTable);
+                while ((m = fallbackSorter.GetNextMove()) != null)
+                {
+                    if (board.MakeMove(m.Value, out Undo undo))
+                    {
+                        board.UnmakeMove(m.Value, undo);
+                        bestMove = m.Value;
+                        break;
+                    }
+                }
+            }
+
             transpositionTable.StoreEntry(board.currentZobristKey, bestScore, depth, TranspositionTableFlag.EXACT, bestMove);
             return bestMove;
         }
@@ -157,24 +184,33 @@ namespace Uncy.Shared.search
                 {
                     if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
                         continue;
-                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
-                    board.UnmakeMove(m.Value, undo);
-
-                    if (score > maxScore)
+                    try
                     {
-                        maxScore = score;
-                        bestMoveInNode = m.Value;
+                        int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                        if (score > maxScore)
+                        {
+                            maxScore = score;
+                            bestMoveInNode = m.Value;
+                        }
+
+                        // Alpha beta pruning happens here:
+                        alpha = Math.Max(alpha, score);
+                        if (beta <= alpha)
+                        {
+                            transpositionTable.StoreEntry(zobristKey, maxScore, depth, TranspositionTableFlag.LOWERBOUND, m.Value);
+                            return maxScore;
+                        }
                     }
-
-
-                    // Alpha beta pruning happens here:
-                    alpha = Math.Max(alpha, score);
-                    if (beta <= alpha)
+                    finally
                     {
-                        transpositionTable.StoreEntry(zobristKey, maxScore, depth, TranspositionTableFlag.LOWERBOUND, m.Value);
-                        return maxScore;
+                        board.UnmakeMove(m.Value, undo);
                     }
+                }
 
+                // Kein legaler Zug für den Max-Spieler → Matt oder Patt
+                if (maxScore == int.MinValue)
+                {
+                    return board.IsKingInCheck(maxPlayer) ? int.MinValue + depth : 0;
                 }
 
                 TranspositionTableFlag flag;
@@ -199,23 +235,32 @@ namespace Uncy.Shared.search
                 {
                     if (!board.MakeMove(m.Value, out Undo undo))
                         continue;
-                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
-                    board.UnmakeMove(m.Value, undo);
-
-                    if (score < minScore)
+                    try
                     {
-                        minScore = score;
-                        bestMoveInNode = m.Value;
-                    }
+                        int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                        if (score < minScore)
+                        {
+                            minScore = score;
+                            bestMoveInNode = m.Value;
+                        }
 
-                    // Pruning
-                    beta = Math.Min(beta, score);
-                    if (beta <= alpha)
+                        // Pruning
+                        beta = Math.Min(beta, score);
+                        if (beta <= alpha)
+                        {
+                            transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m.Value);
+                            return minScore;
+                        }
+                    }
+                    finally
                     {
-                        transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m.Value);
-                        return minScore;
+                        board.UnmakeMove(m.Value, undo);
                     }
-
+                }
+                // Kein legaler Zug für den Min-Spieler → Matt oder Patt
+                if (minScore == int.MaxValue)
+                {
+                    return board.IsKingInCheck(board.sideToMove) ? int.MaxValue - depth : 0;
                 }
                 transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.EXACT, bestMoveInNode);
                 return minScore;
@@ -227,7 +272,7 @@ namespace Uncy.Shared.search
             List<Move> possibleMoves = new List<Move>();
             MoveGenerator.GeneratePseudoMoves(b, b.sideToMove, possibleMoves);
 
-            if (transpositionTable.TryGetEntry(b.currentZobristKey, out TranspositionTableEntry entry))
+            if (transpositionTable.TryGetEntry(b.currentZobristKey, out TranspositionTableEntry entry) && entry.bestMove.IsValid)
             {
                 for (int i = 0; i < possibleMoves.Count; i++)
                 {

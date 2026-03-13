@@ -317,6 +317,11 @@ namespace Uncy.Shared.boardAlt
 
         public bool MakeMove(Move move, out Undo undo)
         {
+            if (!move.IsValid)
+            {
+                undo = default;
+                return false;
+            }
             undo = new Undo(this.whiteKingShortCastle, this.whiteKingLongCastle, this.blackKingShortCastle, this.blackKingLongCastle,
                             this.enPassantTargetSquare, this.halfMoveClock, this.currentZobristKey);
             ApplyPieceMove(move);

@@ -33,6 +33,9 @@ namespace Uncy.Shared.boardAlt
             this.doubleSquarePushFlag = doubleSquarePushFlag;
         }
 
+        /// <summary>True if this is a real move (has a piece to move). False for default/null sentinel moves.</summary>
+        public bool IsValid => movedPiece != Piece.Empty;
+
         public bool IsCaptureOrPawnMove()
         {
             if (capturedPiece != Piece.Empty || Piece.IsPieceAPawn(movedPiece)) return true;
