@@ -383,6 +383,34 @@ namespace Uncy.Shared.boardAlt
             }
         }
 
+        public void MakeNullMove(out Undo undo)
+        {
+            undo = new Undo(this.whiteKingShortCastle, this.whiteKingLongCastle, this.blackKingShortCastle, this.blackKingLongCastle,
+                            this.enPassantTargetSquare, this.halfMoveClock, this.currentZobristKey);
+            
+            if (enPassantTargetSquare != -1)
+            {
+                currentZobristKey ^= zobristKeys.zobrist_EP[enPassantTargetSquare % dimensionsOfBoard.Item1];
+                enPassantTargetSquare = -1;
+            }
+            
+            sideToMove = !sideToMove;
+            currentZobristKey ^= zobristKeys.zobrist_side;
+            halfMoveClock++;
+        }
+
+        public void UnmakeNullMove(Undo undo)
+        {
+            this.whiteKingShortCastle = undo.whiteKingShortCastle;
+            this.whiteKingLongCastle = undo.whiteKingLongCastle;
+            this.blackKingShortCastle = undo.blackKingShortCastle;
+            this.blackKingLongCastle = undo.blackKingLongCastle;
+            this.enPassantTargetSquare = undo.enPassantTargetSquare;
+            this.halfMoveClock = undo.halfMoveClock;
+            this.currentZobristKey = undo.zobristKey;
+            this.sideToMove = !sideToMove;
+        }
+
         private void ApplyPieceMove(Move move)
         {
             // Set current square empty

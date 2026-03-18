@@ -14,6 +14,10 @@ namespace Uncy.Shared.search
         private IEvaluator evaluator;
         private TranspositionTable transpositionTable;
 
+        // Added for Move Ordering
+        public Move[,] killerMoves = new Move[100, 2];
+        public int[,] historyTable = new int[32, 128];
+
         public Search(IEvaluator eval, TranspositionTable tt)
         {
             this.evaluator = eval;
@@ -67,7 +71,7 @@ namespace Uncy.Shared.search
             int bestScore = maximizingSide ? int.MinValue : int.MaxValue;
 
             ulong rootZobristKey = board.currentZobristKey;
-            MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
+            MoveSorter moveSorter = new MoveSorter(board, transpositionTable, this, 0);
             Move? m;
             int movesTried = 0;
 
@@ -81,7 +85,7 @@ namespace Uncy.Shared.search
 
                 try
                 {
-                    int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maximizingSide);
+                    int score = MiniMaxWithAlphaBeta(board, depth - 1, 1, alpha, beta, !maximizingSide);
 
                     bool isBetter = maximizingSide ? score > bestScore : score < bestScore;
                     if (isBetter)
@@ -103,7 +107,7 @@ namespace Uncy.Shared.search
             // Nur wenn Board unverändert (Zobrist gleich), sonst wurde das Brett in der Rekursion nicht korrekt zurückgesetzt.
             if (!bestMove.IsValid && movesTried > 0 && board.currentZobristKey == rootZobristKey)
             {
-                MoveSorter fallbackSorter = new MoveSorter(board, transpositionTable);
+                MoveSorter fallbackSorter = new MoveSorter(board, transpositionTable, this, 0);
                 while ((m = fallbackSorter.GetNextMove()) != null)
                 {
                     if (board.MakeMove(m.Value, out Undo undo))
@@ -119,7 +123,7 @@ namespace Uncy.Shared.search
             return bestMove;
         }
 
-        public int MiniMaxWithAlphaBeta(Board board, int depth, int alpha, int beta, bool maxPlayer)
+        public int MiniMaxWithAlphaBeta(Board board, int depth, int ply, int alpha, int beta, bool maxPlayer, bool allowNull = true)
         {
             // Reading from the transposition table to determine whether this node needs to be calculated
             ulong zobristKey = board.currentZobristKey;
@@ -142,12 +146,32 @@ namespace Uncy.Shared.search
                 }
             }
 
-            if (depth == 0)
+            if (depth <= 0)
             {
-                return evaluator.Evaluate(board);
+                return QuiescenceSearch(board, alpha, beta, maxPlayer);
             }
 
-            MoveSorter moveSorter = new MoveSorter(board, transpositionTable);
+            bool inCheck = board.IsKingInCheck(board.sideToMove);
+
+            // --- Null Move Pruning ---
+            int R = 2; // Null move reduction
+            if (allowNull && depth >= 1 + R && !inCheck)
+            {
+                board.MakeNullMove(out Undo nullUndo);
+                int nullScore = MiniMaxWithAlphaBeta(board, depth - 1 - R, ply + 1, alpha, beta, !maxPlayer, false);
+                board.UnmakeNullMove(nullUndo);
+
+                if (maxPlayer)
+                {
+                    if (nullScore >= beta) return nullScore; // Fail-high
+                }
+                else
+                {
+                    if (nullScore <= alpha) return nullScore; // Fail-low
+                }
+            }
+
+            MoveSorter moveSorter = new MoveSorter(board, transpositionTable, this, ply);
             Move? m;
 
             if (moveSorter.HasNoMoreMoves())
@@ -178,15 +202,43 @@ namespace Uncy.Shared.search
             if (maxPlayer)
             {
                 int maxScore = int.MinValue;
-                //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                //foreach (Move m in SortedMoves(board))
+                bool foundPv = false;
+                int movesTried = 0;
                 while ((m = moveSorter.GetNextMove()) != null)
                 {
-                    if (!board.MakeMove(m.Value, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
+                    movesTried++;
+                    if (!board.MakeMove(m.Value, out Undo undo))
                         continue;
                     try
                     {
-                        int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                        int score;
+                        if (foundPv)
+                        {
+                            bool isQuiet = m.Value.capturedPiece == Piece.Empty && m.Value.promotionPiece == Piece.Empty;
+                            bool givesCheck = board.IsKingInCheck(board.sideToMove);
+
+                            if (depth >= 3 && movesTried > 4 && isQuiet && !inCheck && !givesCheck)
+                            {
+                                score = MiniMaxWithAlphaBeta(board, depth - 2, ply + 1, alpha, alpha + 1, !maxPlayer);
+                                if (score > alpha)
+                                {
+                                    score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, beta, !maxPlayer);
+                                }
+                            }
+                            else
+                            {
+                                score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, alpha + 1, !maxPlayer);
+                                if (score > alpha && score < beta)
+                                {
+                                    score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, beta, !maxPlayer);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, beta, !maxPlayer);
+                        }
+
                         if (score > maxScore)
                         {
                             maxScore = score;
@@ -197,9 +249,11 @@ namespace Uncy.Shared.search
                         alpha = Math.Max(alpha, score);
                         if (beta <= alpha)
                         {
+                            if (m.Value.capturedPiece == Piece.Empty) StoreKillerAndHistory(m.Value, ply, depth);
                             transpositionTable.StoreEntry(zobristKey, maxScore, depth, TranspositionTableFlag.LOWERBOUND, m.Value);
                             return maxScore;
                         }
+                        foundPv = true;
                     }
                     finally
                     {
@@ -229,15 +283,43 @@ namespace Uncy.Shared.search
             else
             {
                 int minScore = int.MaxValue;
-                //foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                //foreach (Move m in SortedMoves(board))
+                bool foundPv = false;
+                int movesTried = 0;
                 while ((m = moveSorter.GetNextMove()) != null)
                 {
+                    movesTried++;
                     if (!board.MakeMove(m.Value, out Undo undo))
                         continue;
                     try
                     {
-                        int score = MiniMaxWithAlphaBeta(board, depth - 1, alpha, beta, !maxPlayer);
+                        int score;
+                        if (foundPv)
+                        {
+                            bool isQuiet = m.Value.capturedPiece == Piece.Empty && m.Value.promotionPiece == Piece.Empty;
+                            bool givesCheck = board.IsKingInCheck(board.sideToMove);
+
+                            if (depth >= 3 && movesTried > 4 && isQuiet && !inCheck && !givesCheck)
+                            {
+                                score = MiniMaxWithAlphaBeta(board, depth - 2, ply + 1, beta - 1, beta, !maxPlayer);
+                                if (score < beta)
+                                {
+                                    score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, beta, !maxPlayer);
+                                }
+                            }
+                            else
+                            {
+                                score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, beta - 1, beta, !maxPlayer);
+                                if (score < beta && score > alpha)
+                                {
+                                    score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, beta, !maxPlayer);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            score = MiniMaxWithAlphaBeta(board, depth - 1, ply + 1, alpha, beta, !maxPlayer);
+                        }
+
                         if (score < minScore)
                         {
                             minScore = score;
@@ -248,9 +330,11 @@ namespace Uncy.Shared.search
                         beta = Math.Min(beta, score);
                         if (beta <= alpha)
                         {
+                            if (m.Value.capturedPiece == Piece.Empty) StoreKillerAndHistory(m.Value, ply, depth);
                             transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.UPPERBOUND, m.Value);
                             return minScore;
                         }
+                        foundPv = true;
                     }
                     finally
                     {
@@ -265,6 +349,87 @@ namespace Uncy.Shared.search
                 transpositionTable.StoreEntry(zobristKey, minScore, depth, TranspositionTableFlag.EXACT, bestMoveInNode);
                 return minScore;
             }
+        }
+
+        public int QuiescenceSearch(Board board, int alpha, int beta, bool maxPlayer)
+        {
+            int standPat = evaluator.Evaluate(board);
+
+            if (maxPlayer)
+            {
+                if (standPat >= beta) return beta;
+                if (alpha < standPat) alpha = standPat;
+
+                MoveSorter moveSorter = new MoveSorter(board, transpositionTable, this, 100);
+                Move? m;
+
+                while ((m = moveSorter.GetNextMove()) != null)
+                {
+                    if (m.Value.capturedPiece == Piece.Empty && m.Value.promotionPiece == Piece.Empty)
+                        continue;
+
+                    if (!board.MakeMove(m.Value, out Undo undo))
+                        continue;
+
+                    try
+                    {
+                        int score = QuiescenceSearch(board, alpha, beta, !maxPlayer);
+
+                        if (score >= beta) return beta;
+                        if (score > alpha) alpha = score;
+                    }
+                    finally
+                    {
+                        board.UnmakeMove(m.Value, undo);
+                    }
+                }
+                return alpha;
+            }
+            else
+            {
+                if (standPat <= alpha) return alpha;
+                if (beta > standPat) beta = standPat;
+
+                MoveSorter moveSorter = new MoveSorter(board, transpositionTable, this, 100);
+                Move? m;
+
+                while ((m = moveSorter.GetNextMove()) != null)
+                {
+                    if (m.Value.capturedPiece == Piece.Empty && m.Value.promotionPiece == Piece.Empty)
+                        continue;
+
+                    if (!board.MakeMove(m.Value, out Undo undo))
+                        continue;
+
+                    try
+                    {
+                        int score = QuiescenceSearch(board, alpha, beta, !maxPlayer);
+
+                        if (score <= alpha) return alpha;
+                        if (score < beta) beta = score;
+                    }
+                    finally
+                    {
+                        board.UnmakeMove(m.Value, undo);
+                    }
+                }
+                return beta;
+            }
+        }
+
+        private void StoreKillerAndHistory(Move move, int ply, int depth)
+        {
+            if (ply < 100)
+            {
+                // Store Killer Move
+                if (!killerMoves[ply, 0].Equals(move))
+                {
+                    killerMoves[ply, 1] = killerMoves[ply, 0];
+                    killerMoves[ply, 0] = move;
+                }
+            }
+            // Store History Move
+            historyTable[move.movedPiece, move.toSquare] += depth * depth;
         }
 
         public List<Move> SortedMoves(Board b)
@@ -286,45 +451,6 @@ namespace Uncy.Shared.search
             }
 
             return possibleMoves;
-        }
-
-
-        /*
-         * DEPRECATED
-         */
-        public int MiniMax(Board board, int depth, bool maxPlayer)
-        {
-            if (depth == 0)
-            {
-                return evaluator.Evaluate(board);
-            }
-
-            if (maxPlayer)
-            {
-                int maxScore = int.MinValue;
-                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                {
-                    if (!board.MakeMove(m, out Undo undo)) // If this returns wrong, the move wasn't legal, therefore will be skipped. MakeMove is handling the UnmakeMove()
-                        continue;
-                    int score = MiniMax(board, depth - 1, !maxPlayer);
-                    board.UnmakeMove(m, undo);
-                    maxScore = Math.Max(maxScore, score);
-                }
-                return maxScore;
-            }
-            else
-            {
-                int minScore = int.MaxValue;
-                foreach (Move m in MoveGenerator.GenerateLegalMoves(board))
-                {
-                    if (!board.MakeMove(m, out Undo undo))
-                        continue;
-                    int score = MiniMax(board, depth - 1, !maxPlayer);
-                    board.UnmakeMove(m, undo);
-                    minScore = Math.Min(minScore, score);
-                }
-                return minScore;
-            }
         }
     }
 }

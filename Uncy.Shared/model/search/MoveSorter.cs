@@ -14,9 +14,14 @@ namespace Uncy.Shared.search
         private readonly List<Move> moves;
         private readonly int[] scores;
         private int currentIndex = 0;
+        private Search searcher;
+        private int currentPly;
 
-        public MoveSorter(Board board, TranspositionTable tt) // Killer moves & depth, Historyheuristic for quiet moves,
+        public MoveSorter(Board board, TranspositionTable tt, Search searcher, int ply) // Killer moves & depth, Historyheuristic for quiet moves,
         {
+            this.searcher = searcher;
+            this.currentPly = ply;
+            
             // Use pseudo moves instead of legal moves - legality check happens in Searcher via MakeMove()
             moves = new List<Move>();
             MoveGenerator.GeneratePseudoMoves(board, board.sideToMove, moves);
@@ -43,7 +48,15 @@ namespace Uncy.Shared.search
                 return 1_000_000 + CalculateMvvLvaScore(move);
             }
 
-            return 1_000_000;
+            // Killer Moves
+            if (currentPly < 100)
+            {
+                if (move.Equals(searcher.killerMoves[currentPly, 0])) return 900_000;
+                if (move.Equals(searcher.killerMoves[currentPly, 1])) return 800_000;
+            }
+
+            // History Heuristics for quiet moves
+            return searcher.historyTable[move.movedPiece, move.toSquare];
         }
 
         private int CalculateMvvLvaScore(Move move)

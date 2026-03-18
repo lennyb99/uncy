@@ -20,7 +20,8 @@ class Program
 
         Fen bigFen = new Fen("bBbBbBbBbB/rRrRrRrRrR/pppp4pp/bBbBbBbBbB/rRrRrRrRrR/pPpPpPpPpP w KQkq - 0 1");
 
-        Fen tempFen = new Fen("1r4k1/5ppp/2Q5/8/8/8/5PPP/2R3K1 b - - 0 1");
+        Fen tacticFen = new Fen("3qpkp1/1r2p1p1/Q7/6N1/8/8/8/5K2 w - - 0 1");
+        Fen tempFen = new Fen("1rb2bnr/2ppnkpp/p1p1p3/5pq1/8/BP2P1PB/P2P1P1P/RN1QK1NR w KQ - 2 10");
 
         Fen debugFen = new Fen("r2q1rk1/1bp2p2/pb1p1n2/1p2n1B1/3p4/1BPQ4/P4PPP/RN2R1K1 w - - 0 1");
         Fen debugFenTwo = new Fen("rnbqkbnr/p1pppppp/1p6/8/8/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1");
@@ -28,7 +29,7 @@ class Program
         Fen closedPositionWithBishops = new Fen("5b2/3k4/1p1p1p1p/pPpPpPpP/P1P1P1P1/8/3BK3/8 w - - 0 1");
         Fen mateToFind = new Fen("r2r2k1/pp3ppp/2p2b2/5q2/4RB2/1P3PP1/P4P1P/3QR1K1 w - - 0 1");
 
-        Board board = new Board(tempFen);
+        Board board = new Board(tacticFen);
         //board.PrintBoardToConsole();
 
 
@@ -37,7 +38,7 @@ class Program
 
         // Original Perft (misst viel mehr als nur Move-Generation)
         //StartPerftDebug(board, 5);
-        StartSearch(board, 6);
+        StartSearch(board, 4);
 
         // Vergleich: Alle Perft-Varianten
         //CompareAllPerftVariants(board, 5);
